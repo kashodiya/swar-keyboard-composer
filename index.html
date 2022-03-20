@@ -30,6 +30,70 @@
     <!-- jsPDF docs: http://raw.githack.com/MrRio/jsPDF/master/docs/index.html     -->
     <script src="https://unpkg.com/jspdf@latest/dist/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- 
+    <script type="module">
+        import { openDB, deleteDB } from 'https://cdn.jsdelivr.net/npm/idb@7/+esm';
+        console.log({openDB})
+    </script> -->
+
+    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/idb-keyval/6.1.0/index.min.js"></script> -->
+
+
+    <!-- idb Docs: https://github.com/jakearchibald/idb -->
+    <script src="https://cdn.jsdelivr.net/npm/idb@7/build/umd.js"></script>
+    <script>
+
+        let dbName = 'composer-db';
+        let stores = {
+            Recordings: {name: 'Recordings'}, 
+            Players: {name: 'Players'}, 
+            Editors: {name: 'Editors'}};
+        let db;
+
+        async function initDB() {
+            db = await idb.openDB(dbName, 1, {
+                upgrade(db) {
+                    db.createObjectStore(stores.Players.name);
+                    db.createObjectStore(stores.Editors.name);
+                    db.createObjectStore(stores.Recordings.name);
+                },
+            });
+
+            // stores.Players.store = db.transaction(stores.Players.name, 'readwrite').objectStore(stores.Players.name);
+            // stores.Editors.store = db.transaction(stores.Editors.name, 'readwrite').objectStore(stores.Editors.name);
+            // stores.Recordings.store = db.transaction(stores.Recordings.name, 'readwrite').objectStore(stores.Recordings.name);
+
+            // let val = { name: 'Kaushik', id: 25 };
+            // await store.put(val, "25");
+
+            // let val = { name: 'Kaushik', id: 26 };
+            // await stores.Players.store.put(val, "26");
+
+            // const value = await store.get("25");
+            // console.log({ value });
+
+            // const tx = db.transaction(storeName, 'readwrite'); 
+            // const store = tx.store;            
+
+            // let val = {name: 'Kaushik', id: 25};
+            // await store.put(storeName, val, val.id);            
+            // const value = await store.get(storeName, 25);
+            // console.log({value});
+
+        }
+
+        let dbHelper = {
+            addPlayerData: async (fileName, arrayBuffer) => {
+                console.log('Saving file...', {fileName, arrayBuffer});
+                await db.put(stores.Players.name, {fileName, arrayBuffer}, fileName);
+                // await stores.Players.store.put({fileName}, fileName);
+            }
+        }
+
+        // setTimeout(async () => {
+        // }, 2000);
+
+    </script>
 
     <style>
         .cur-swar {
@@ -333,6 +397,12 @@
                 </v-toolbar-title>
                 <v-spacer></v-spacer>
 
+
+                <v-btn small @click="listFiles" class="mr-3">
+                    Files
+                    <v-icon right>mdi-format-list-bulleted</v-icon>
+                </v-btn>
+
                 <v-btn small @click="addNewSwarEdit" class="mr-3">
                     New Swar Editor
                     <v-icon right>mdi-lead-pencil</v-icon>
@@ -411,6 +481,68 @@
                     </v-card>
                 </v-tab-item>
             </v-tabs-items>
+
+
+            <!-- Dialog to show files -->
+            <v-dialog v-model="showFileDialog" scrollable max-width="700px">
+                <v-card>
+                    <v-card-title>Files</v-card-title>
+                    <v-divider></v-divider>
+                    <v-card-text style="height: 500px;">
+
+
+
+                        <v-data-table disable-pagination fixed-header hide-default-footer :headers="fileListHeaders"
+                            :items="filesList" sort-by="modifiedDate" class="elevation-1">
+
+
+                            <template v-slot:top>
+                                <v-toolbar flat dense>
+                                    <!-- <v-toolbar-title>Filter type</v-toolbar-title>
+                                    <v-divider class="mx-4" inset vertical></v-divider> -->
+                                    <v-spacer></v-spacer>
+
+                                    <!-- <v-toolbar-items> -->
+                                        <v-radio-group XXv-model="row" row>
+                                            <v-radio label="Recordings" value="Recordings"></v-radio>
+                                            <v-radio label="Editors" value="Editors"></v-radio>
+                                            <v-radio label="Players" value="Players"></v-radio>
+                                        </v-radio-group>
+                                    <!-- </v-toolbar-items> -->
+                                </v-toolbar>
+                                <v-divider class="mx-4" XXinset></v-divider>
+                            </template>
+
+
+
+                            <template v-slot:item.createdDate="{ item }">
+                                {{getFormattedDate(item)}}
+                            </template>
+                            <template v-slot:item.actions="{ item }">
+                                <v-icon small class="mr-2" @click="editItem(item)">
+                                    mdi-pencil
+                                </v-icon>
+                                <v-icon small @click="deleteItem(item)">
+                                    mdi-delete
+                                </v-icon>
+                            </template>
+                            <template v-slot:no-data>
+                                <v-btn color="primary" @click="initialize">
+                                    Reset
+                                </v-btn>
+                            </template>
+
+                        </v-data-table>
+
+
+
+
+
+
+                    </v-card-text>
+                </v-card>
+            </v-dialog>
+
         </div>
     </template>
 
@@ -650,6 +782,7 @@
 
 
     <!-- Highlight is done using https://marketplace.visualstudio.com/items?itemName=zcuric.vscode-discourse-plugin -->
+
     <!-- <script id="worker1" type="text/discourse-plugin">
         self.onmessage = function(e) {
             console.log(e);
@@ -1059,7 +1192,7 @@
                     if (!this.chosenFile) { this.data = "No File Chosen" };
                     var reader = new FileReader();
                     reader.onload = (ev) => {
-                        JSZip.loadAsync(ev.target.result).then((zip) => {
+                        JSZip.loadAsync(ev.target.result).then(async (zip) => {
                             console.log({ zip });
                             for (var fileName of Object.keys(zip.files)) {
                                 console.log(fileName);
@@ -1080,6 +1213,7 @@
                                     })
                                 }
                             }
+                            await dbHelper.addPlayerData(this.chosenFile.name, ev.target.result);
                         }).catch(function (err) {
                             console.error("Failed to open ZIP file:", err);
                         })
@@ -1096,7 +1230,7 @@
                         this.$refs['player-swar-' + i][0].classList.remove('current-swar');
                     });
                 },
-                clearAllTimers(){
+                clearAllTimers() {
                     this.timers.forEach(t => {
                         clearTimeout(t);
                     });
@@ -1111,10 +1245,10 @@
                     // let triggerTime = 0;
                     this.clearSwarHighlights();
                     let audioPlayerTime = this.$refs.playerAudio.currentTime * 1000;
-                    console.log({audioPlayerTime});
+                    console.log({ audioPlayerTime });
                     this.swarTimeData.forEach((d, index) => {
-                        if(d.startTime < audioPlayerTime) {
-                            console.log({s: 'SKIPP', index, swar: d.swar, dur: d.duration});
+                        if (d.startTime < audioPlayerTime) {
+                            console.log({ s: 'SKIPP', index, swar: d.swar, dur: d.duration });
                             return;
                         };
 
@@ -1124,7 +1258,7 @@
                             //Set swarTimeDataItem as memory for setTimeout callback
                             let swarTimeDataItem = d;
                             return () => {
-                                console.log({index, swar: d.swar, dur: d.duration, triggerTime});
+                                console.log({ index, swar: d.swar, dur: d.duration, triggerTime });
 
                                 let keyIndex = swarTimeDataItem.keyIndex;
                                 let duration = swarTimeDataItem.duration;
@@ -1312,6 +1446,9 @@
                 }
             },
             methods: {
+                openInPlayer() {
+
+                },
                 generateProjectFileName() {
                     const date = new Date();
                     var fileName = date.getFullYear() + '-'
@@ -1532,6 +1669,7 @@
                 return {
                     curTab: null,
                     tabTitleIndex: 1,
+                    showFileDialog: false,
                     tabs: [
                         {
                             title: 'Welcome',
@@ -1544,7 +1682,27 @@
                         //     title: 'Play-1',
                         //     type: 'play'
                         // }
-                    ]
+                    ],
+                    files: {
+                        'Recordings': [
+                            { name: 'Rec-1', createdDate: new Date, modifiedDate: new Date() }
+                        ],
+                        'Players': [
+                            { name: 'Play-1', createdDate: new Date, modifiedDate: new Date() }
+                        ],
+                        'Editors': [
+                            { name: 'Edit-1', createdDate: new Date, modifiedDate: new Date() }
+                        ],
+                    },
+                    filesList: [],       //See createFilesList() from created()
+                    fileListHeaders: [
+                        { text: 'Type', value: 'type' },
+                        { text: 'Name', value: 'name' },
+                        { text: 'Created Date', value: 'createdDate' },
+                        { text: 'Modified Date', value: 'modifiedDate' },
+                        { text: 'Actions', value: 'actions', sortable: false },
+                    ],
+
                 }
             },
             methods: {
@@ -1566,6 +1724,9 @@
                     this.tabs.push({ title: 'SEdit-' + this.tabTitleIndex, type: 'swarEdit', swarTxt });
                     this.curTab = this.tabs.length - 1;
                 },
+                listFiles() {
+                    this.showFileDialog = true;
+                },
                 closeTab(tabIndex) {
                     let refId = this.tabs[tabIndex].type + '-' + tabIndex;
                     // console.log('Closing refid = ' + refId);
@@ -1575,15 +1736,48 @@
 
                     this.tabs.splice(tabIndex, 1);
                     console.log('closeTab called...');
+                },
+                createFilesList() {
+                    this.filesList = [
+                        ...this.files.Recordings.map(d => {
+                            return {
+                                ...d,
+                                createdDate: getFormattedDate(d.createdDate),
+                                modifiedDate: getFormattedDate(d.modifiedDate),
+                                type: "Recordings", actions: 0
+                            }
+                        }),
+                        ...this.files.Players.map(d => {
+                            return {
+                                ...d,
+                                createdDate: getFormattedDate(d.createdDate),
+                                modifiedDate: getFormattedDate(d.modifiedDate),
+                                type: "Players", actions: 0
+                            }
+                        }),
+                        ...this.files.Editors.map(d => {
+                            return {
+                                ...d,
+                                createdDate: getFormattedDate(d.createdDate),
+                                modifiedDate: getFormattedDate(d.modifiedDate),
+                                type: "Editors", actions: 0
+                            }
+                        })
+                    ]
                 }
             },
             mounted() {
                 this.curTab = 0;
             },
             created() {
+
+                this.createFilesList();
+
                 this.$router.app.$on('onAddNewRecording', this.addNewRecording);
                 this.$router.app.$on('onAddNewPlayer', this.addNewPlayer);
                 this.$router.app.$on('onAddNewSwarEdit', this.addNewSwarEdit);
+                this.$router.app.$on('onListFiles', this.listFiles);
+
 
                 console.log('Main created');
             }
@@ -1848,6 +2042,10 @@
                     addNewSwarEdit() {
                         console.log('Emitting addNewSwarEdit...');
                         this.$router.app.$emit('onAddNewSwarEdit', '');
+                    },
+                    listFiles() {
+                        console.log('Emitting listFiles...');
+                        this.$router.app.$emit('onListFiles', '');
                     }
                 },
                 mounted() {
@@ -1864,14 +2062,35 @@
         }
 
 
-        function init() {
+        async function init() {
             // loadServiceWorker();
             // loadReadmeInWelcomeTemplate();
             initVue();
+            initDB();
             // createPDF();
         }
 
-        init();
+
+        (async () => {
+            init();
+        })();
+
+
+
+
+        function getFormattedDate(date) {
+            var year = date.getFullYear();
+
+            var month = (1 + date.getMonth()).toString();
+            month = month.length > 1 ? month : '0' + month;
+
+            var day = date.getDate().toString();
+            day = day.length > 1 ? day : '0' + day;
+
+            return month + '/' + day + '/' + year;
+        }
+
+
 
 
 
@@ -1903,48 +2122,27 @@
 
         }
 
-
-
-        // recordAudio();
-
-        function XXrecordAudio() {
-            const constraints = { audio: true };
-            let mainAudio = document.getElementById('mainAudio');
-            navigator.mediaDevices.getUserMedia(constraints).then((stream) => {
-                let chunks = [];
-                const mediaRecorder = new MediaRecorder(stream);
-                console.log('Starting recording...for 4 sec...');
-                mediaRecorder.start();
-                setTimeout(() => {
-                    console.log('Stopping recording...');
-                    mediaRecorder.stop();
-                }, 4000);
-
-                mediaRecorder.onstop = async (e) => {
-                    const blob = new Blob(chunks, { 'type': 'audio/ogg; codecs=opus' });
-                    chunks = [];
-                    const audioURL = window.URL.createObjectURL(blob);
-                    mainAudio.src = audioURL;
-                }
-                mediaRecorder.ondataavailable = function (e) {
-                    console.log('Getting chunks...')
-                    chunks.push(e.data);
-                }
-            }, () => {
-                console.log('Error getting: navigator.mediaDevices.getUserMedia');
-            });
-        }
-
-        function XXinitDownloadJSONFile(storageOb) {
-            //For text file use  'data:text/plain;charset=utf-8,'
-            var dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(storageObj));
-            var dlAnchorElem = document.getElementById('downloadAnchorElem');
-            dlAnchorElem.setAttribute("href", dataStr);
-            dlAnchorElem.setAttribute("download", "scene.json");
-            dlAnchorElem.click();
-        }
-
     </script>
+    <!-- 
+
+## localStorage
+- How to read/write binary data
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        localStorage.setItem("file", event.target.result);
+    }
+    reader.readAsDataURL(blob);
+
+
+## Use cache storage?
+- Resources
+    - https://web.dev/cache-api-quick-guide/
+- How to detect?
+    - const cacheAvailable = 'caches' in self;
+
+-->
+
+
 </body>
 
 </html>
