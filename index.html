@@ -1181,6 +1181,10 @@
                 },
                 preparePiano() {
                     //pianoKeys
+                    if(this.swarTimeData.length == 0){
+                        console.log('Not rendereing Piano because there are no swars in the swarTimeData');
+                        return;
+                    }
 
                     let indexes = this.swarTimeData.map(d => {
                         d.swarIndex = this.swars.indexOf(d.swar);
