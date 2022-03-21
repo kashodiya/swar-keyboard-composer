@@ -385,6 +385,11 @@
 
     <template id="main-template">
         <div>
+
+            <v-snackbar v-model="showMesssage">
+                {{message}}
+            </v-snackbar>
+
             <v-tabs show-arrows background-color="deep-purple accent-4" dark v-model="curTab" height="40">
                 <v-tab v-for="(tab, tabIndex) in tabs" :key="'tab-' + tabIndex">
                     <h5>
@@ -416,13 +421,15 @@
                         </template>
                         <template v-else>
                             <div v-if="tab.type == 'rec'">
-                                <Recorder :ref="tab.type + '-' + tabIndex"></Recorder>
+                                <Recorder :ref="tab.type + '-' + tabIndex" :tab-index="tabIndex"></Recorder>
                             </div>
                             <div v-if="tab.type == 'play'">
-                                <Player :ref="tab.type + '-' + tabIndex"></Player>
+                                <Player :ref="tab.type + '-' + tabIndex" :tab-index="tabIndex" :context="tab.context">
+                                </Player>
                             </div>
                             <div v-if="tab.type == 'swarEdit'">
-                                <Swaredit :ref="tab.type + '-' + tabIndex" :swar-txt="tab.swarTxt"></Swaredit>
+                                <Swaredit :ref="tab.type + '-' + tabIndex" :name="tab.context.name"
+                                    :swar-txt="tab.context.swarTxt" :tab-index="tabIndex"></Swaredit>
                             </div>
                         </template>
                     </v-card>
@@ -439,8 +446,9 @@
 
 
 
-                        <v-data-table disable-pagination fixed-header hide-default-footer :headers="fileListHeaders"
-                            :items="filesList" sort-by="modifiedDate" class="elevation-1">
+                        <v-data-table @click:row="fileTableRowClicked" disable-pagination fixed-header
+                            hide-default-footer :headers="fileListHeaders" :items="filesList" sort-by="modifiedDate"
+                            class="elevation-1">
 
 
                             <template v-slot:top>
@@ -466,25 +474,40 @@
                                 {{getFormattedDate(item)}}
                             </template> -->
                             <template v-slot:item.actions="{ item }">
-                                <v-icon small class="mr-2" XXclick="editItem(item)">
-                                    mdi-pencil
-                                </v-icon>
-                                <v-icon small XXclick="deleteItem(item)">
-                                    mdi-delete
-                                </v-icon>
+                                <!-- <v-icon small class="mr-2" CCclick="deleteRecord(item)">
+                                    mdi-folder-open
+                                </v-icon> -->
+
+
+
+                                <v-tooltip left>
+                                    <template v-slot:activator="{ on, attrs }">
+                                        <v-icon small class="mr-2" @click="openRecord(item)" v-bind="attrs" v-on="on">
+                                            mdi-folder-open
+                                        </v-icon>
+                                    </template>
+                                    <span>Open</span>
+                                </v-tooltip>
+
+                                <v-tooltip right>
+                                    <template v-slot:activator="{ on, attrs }">
+                                        <v-icon small @click="deleteRecord(item)" v-bind="attrs" v-on="on">
+                                            mdi-delete
+                                        </v-icon>
+                                    </template>
+                                    <span>Delete</span>
+                                </v-tooltip>
+
+
                             </template>
                             <template v-slot:no-data>
-                                <v-btn color="primary" XXclick="initialize">
+                                <h3>No files found. Create something new!</h3>
+                                <!-- <v-btn color="primary" XXclick="initialize">
                                     Reset
-                                </v-btn>
+                                </v-btn> -->
                             </template>
 
                         </v-data-table>
-
-
-
-
-
 
                     </v-card-text>
                 </v-card>
@@ -519,12 +542,14 @@
 
             <p>
                 <v-btn :disabled="!audioDataReady" @click="download">Download</v-btn>
+                <v-btn :disabled="!audioDataReady" @click="openInPlayer">Open in Player</v-btn>
+
             </p>
 
             <p>
                 <v-form ref="form" @submit.prevent="download">
-                    <v-text-field class="file-name-input" :rules="[rules.required]" v-model="projectFileName"
-                        label="File name"></v-text-field>
+                    <v-text-field class="file-name-input" :rules="[rules.required]" v-model="projectName"
+                        label="Project name"></v-text-field>
                 </v-form>
             </p>
 
@@ -536,9 +561,9 @@
             </ul>
 
 
-            <v-snackbar v-model="showMesssage">
+            <!-- <v-snackbar v-model="showMesssage">
                 {{message}}
-            </v-snackbar>
+            </v-snackbar> -->
 
         </div>
     </template>
@@ -694,7 +719,7 @@
             <v-btn x-small @click="adjustBitGap(swarLineBitsGapIncrement)">Increase Gap</v-btn>
             <v-btn x-small @click="adjustBitGap(swarLineBitsGapIncrement * -1)">Decrease Gap</v-btn>
 
-            <v-btn x-small @click="createPDF">Download PDF</v-btn>
+            <!-- <v-btn x-small XXclick="">Download PDF</v-btn> -->
 
             <!-- <v-btn x-small @click="fixSwarLineBitsWidth">Aligh bits vertically</v-btn> -->
 
@@ -704,8 +729,9 @@
             </p>
 
 
-            <v-btn XXclick="openFormatSwars" x-small>Download swars</v-btn>
-            <v-btn XXclick="openFormatSwars" x-small>Download zip</v-btn>
+            <!-- <v-btn XXclick="openFormatSwars" x-small>Download swars</v-btn> -->
+            <v-btn @click="saveRecord(true)" x-small>Download zip</v-btn>
+
             <v-switch v-model="allowLyricsLines" label="Allow lyrics lines before swar lines"></v-switch>
 
             <v-divider class="mt-5 mb-5"></v-divider>
@@ -742,11 +768,12 @@
         let dbName = 'composer-db';
         let dbHelper;
         let db;
-        let stores = {
-            Recordings: { name: 'Recordings' },
-            Players: { name: 'Players' },
-            Editors: { name: 'Editors' }
-        };
+        let storeNames = ['Players', 'Editors', 'Recordings'];
+        // let stores = {
+        //     Recordings: { name: 'Recordings' },
+        //     Players: { name: 'Players' },
+        //     Editors: { name: 'Editors' }
+        // };
 
 
         var keys = "C#3 D3 D#3 E3 F3 F#3 G3 G#3 A3 A#3 B3 C4 C#4 D4 D#4 E4 F4 F#4 G4 G#4 A4 A#4 B4 C5 C#5 D5 D#5 E5 F5 F#5 G5 G#5 A5 A#5 B5 C6".split(" ");
@@ -800,7 +827,7 @@
 
         const SwarEdit = Vue.component('Swaredit', {
             template: '#swaredit-template',
-            props: ['swarTxt'],
+            props: ['swarTxt', 'name', 'tabIndex'],
             data() {
                 return {
                     showGuide: false,
@@ -830,6 +857,8 @@
             },
             methods: {
                 transformFromattedSwars() {
+                    if (this.formattedSwars == null || this.formattedSwars.length == 0) return;
+
                     let lines = this.formattedSwars.split('\n');
                     console.log({ lines });
                     // this.lines = [];
@@ -892,15 +921,15 @@
                     });
 
                 },
-                openFormatSwars() {
-                    // this.formattedSwars = this.swarTimeData.map(d => d.swar).join(' ');
-                    // this.showFormatSwars = true;
+                // openFormatSwars() {
+                //     // this.formattedSwars = this.swarTimeData.map(d => d.swar).join(' ');
+                //     // this.showFormatSwars = true;
 
-                    let swarTxt = this.swarTimeData.map(d => d.swar).join(' ');
-                    this.$router.app.$emit('onAddNewSwarEdit', swarTxt);
+                //     let swarTxt = this.swarTimeData.map(d => d.swar).join(' ');
+                //     this.$router.app.$emit('onAddNewSwarEdit', swarTxt);
 
-                    // console.log({ show });
-                },
+                //     // console.log({ show });
+                // },
                 async createPDF() {
                     let table = this.$refs['swar-line-preview-table'];
                     var doc = new jspdf.jsPDF();
@@ -940,12 +969,44 @@
                         x: 10,
                         y: 10
                     });
+                },
+                saveRecord(download) {
+                    let zip = new JSZip();
+                    zip.file(this.name + '-formatted-swars.txt', this.formattedSwars);
+                    zip.file(this.name + '-preview.html', 'TODO: THIS FILE SHOULD INCLUDE HTML OF THE TABLE');
+
+                    zip.generateAsync({ type: "blob" }).then(async (content) => {
+                        let fileName = this.name + '.zip';
+                        if (download) {
+                            saveAs(content, fileName);
+                        }
+                        //Save to db
+                        // let record = { name: this.name, fileName, createdDate: new Date(), type: 'Editors', arrayBuffer: await content.arrayBuffer() };
+                        let record = { name: this.name, fileName, type: 'Editors', arrayBuffer: await content.arrayBuffer() };
+                        await dbHelper.saveRecord(record);
+                    });
+
+                    // zip.generateAsync({type : "string"});
+
+
+                    // JSZip.loadAsync(data).then(function () {
+                    // // ...
+                    // });
+
+
+                },
+                createZip(download) {
+
                 }
             },
             mounted() {
+
+
             },
             created() {
                 console.log('SwarEdit created');
+
+
                 this.formattedSwars = this.swarTxt;
                 console.log({ swarTxt: this.swarTxt });
 
@@ -958,11 +1019,19 @@
                             "r g m p | s r g m | g m p d"].join('\n');
                 }
 
+                //If name as passed (from recorder/player), set title and save
+                if (this.name && this.name.length > 0) {
+                    this.$router.app.$emit('onRenameTab', { tabIndex: this.tabIndex, name: this.name });
+                    // this.createZip(false);
+                    this.saveRecord();
+                }
+
             }
         })
 
         const Player = Vue.component('Player', {
             template: '#player-template',
+            props: ['tabIndex', 'context'],
             data() {
                 return {
                     tickInterval: 500,
@@ -978,6 +1047,8 @@
                     //     { className: 'ome-bhatkhande-punjabi', title: 'Punjabi' },
                     //     { className: 'ome-swarlipi', title: 'Swarlipi' }
                     // ],
+                    fileName: '',
+                    name: '',
                     timers: [],
                     timer: null,
                     audioDuration: 0,
@@ -1021,7 +1092,7 @@
 
                 chosenFile() {
                     console.log('File loaded');
-                    this.readZipFile();
+                    this.readChosenFile();
                 },
                 // allowLyricsLines() {
                 //     this.transformFromattedSwars();
@@ -1097,7 +1168,7 @@
                     // this.showFormatSwars = true;
 
                     let swarTxt = this.swarTimeData.map(d => d.swar).join(' ');
-                    this.$router.app.$emit('onAddNewSwarEdit', swarTxt);
+                    this.$router.app.$emit('onAddNewSwarEdit', { swarTxt, name: this.name + '-swars' });
 
                     // console.log({ show });
                 },
@@ -1145,11 +1216,51 @@
                     console.log({ wKeyCount, bKeyCount, pianoWidth });
                     this.$refs.pianoKeys.style.width = pianoWidth + 'em';
                 },
-                readZipFile() {
-                    if (!this.chosenFile) { 
+                loadZipFile(audioBlob, origFileName) {
+
+                    JSZip.loadAsync(audioBlob).then(async (zip) => {
+                        console.log({ zip });
+                        for (var fileName of Object.keys(zip.files)) {
+                            console.log(fileName);
+                            if (fileName.indexOf('-audio.ogg') != -1) {
+                                zip.file(fileName).async("ArrayBuffer").then((audioData) => {
+                                    // console.log({ audioData });
+                                    const blob = new Blob([audioData], { type: "audio/wav" });
+                                    this.$refs.playerAudio.src = window.URL.createObjectURL(blob);
+                                    console.log('Successfully got audio from zip file.')
+                                })
+                            } else if (fileName.indexOf('-swarTimeData.json') != -1) {
+                                zip.file(fileName).async("text").then((jsonTxt) => {
+                                    // console.log({ jsonTxt });
+                                    this.swarTimeData = JSON.parse(jsonTxt);
+                                    console.table(this.swarTimeData.map(d => { return { st: d.startTime, et: d.endTime, swar: d.swar } }));
+                                    this.preparePiano();
+                                    console.log('Successfully got swarTimeData from zip file.')
+                                })
+                            }
+                        }
+
+                        fileName = origFileName;
+                        let name = fileName.replace(/\.[^/.]+$/, "");
+                        // let record = { type: 'Players', name, fileName, createdDate: new Date(), arrayBuffer: ev.target.result };
+                        let record = { type: 'Players', name, fileName, arrayBuffer: audioBlob };
+                        await dbHelper.saveRecord(record);
+
+                        this.fileName = fileName;
+                        this.name = name;
+                        this.$router.app.$emit('onRenameTab', { tabIndex: this.tabIndex, name });
+
+                    }).catch(function (err) {
+                        console.error("Failed to open ZIP file:", err);
+                    })
+
+
+                },
+                readChosenFile() {
+                    if (!this.chosenFile) {
                         this.data = "No File Chosen";
                         //TODO: Show this err to user?
-                        return; 
+                        return;
                     };
                     var reader = new FileReader();
                     reader.onload = (ev) => {
@@ -1174,7 +1285,17 @@
                                     })
                                 }
                             }
-                            await dbHelper.addPlayerData(this.chosenFile.name, ev.target.result);
+
+                            fileName = this.chosenFile.name;
+                            let name = fileName.replace(/\.[^/.]+$/, "");
+                            // let record = { type: 'Players', name, fileName, createdDate: new Date(), arrayBuffer: ev.target.result };
+                            let record = { type: 'Players', name, fileName, arrayBuffer: ev.target.result };
+                            await dbHelper.saveRecord(record);
+
+                            this.fileName = this.chosenFile.name;
+                            this.name = name;
+                            this.$router.app.$emit('onRenameTab', { tabIndex: this.tabIndex, name });
+
                         }).catch(function (err) {
                             console.error("Failed to open ZIP file:", err);
                         })
@@ -1377,9 +1498,23 @@
                 //         "s r g m | r g m p | g m p d",
                 //         "se ... ... ... | kya ... maan gu | ji na ke ...",
                 //         "r g m p | s r g m | g m p d"].join('\n');
+
+
+                                
+                if (this.context != null) {
+                    console.log('Got context = ');
+                    console.log(this.context);
+                    this.loadZipFile(this.context.audioBlob, this.context.fileName);
+                } else {
+                    console.log('NO context');
+                }
+
             },
             created() {
                 console.log('Player created');
+
+
+
             }
         })
 
@@ -1387,6 +1522,7 @@
 
         const Recorder = Vue.component('Recorder', {
             template: '#recorder-template',
+            props: ['tabIndex'],
             data() {
                 return {
                     audioDataReady: false,
@@ -1394,23 +1530,28 @@
                         required: value => !!value || 'Please enter download file name.'
                     },
                     recState: 'NOT-RECORDING',
-                    showMesssage: false,
-                    message: '',
+                    // showMesssage: false,
+                    // message: '',
                     deviceId: '',
                     deviceName: '',
                     mediaRecorderCreated: false,
                     recStartDateTime: null,
                     swarTimeData: [],
-                    projectFileName: '',
+                    oldProjectName: '',
+                    projectName: '',
                     pianoKeyDownInfo: null,
                     keys, swars, swarsEng            //These come from global vars
                 }
             },
             methods: {
-                openInPlayer() {
-
+                async openInPlayer() {
+                    let name = this.getFileName();
+                    if (!name) return;
+                    let audioBlob = await this.getZipBlob();
+                    let fileName = name + '.zip';
+                    this.$router.app.$emit('onAddNewPlayer', { audioBlob, name, fileName });
                 },
-                generateProjectFileName() {
+                generateProjectName() {
                     const date = new Date();
                     var fileName = date.getFullYear() + '-'
                         + ('0' + (date.getMonth() + 1)).slice(-2) + '-'
@@ -1420,15 +1561,26 @@
                         + ('0' + date.getSeconds()).slice(-2);
                     return fileName;
                 },
-                download() {
+                getFileName() {
                     this.$refs.form.validate();
-                    if (this.projectFileName == '') {
-                        this.message = "Please enter file name";
-                        this.showMesssage = true;
-                        return;
+                    if (this.projectName == '') {
+                        // this.message = "Please enter file name";
+                        // this.showMesssage = true;
+                        this.$router.app.$emit('onShowMessage', 'Please enter file name');
+                        return false;
                     }
-
-
+                    return this.projectName;
+                },
+                async download() {
+                    let name = this.getFileName();
+                    if (!name) return;
+                    let content = await this.getZipBlob();
+                    let fileName = name + '.zip';
+                    saveAs(content, fileName);
+                    await this.saveRecord();
+                    this.oldProjectName = name;
+                },
+                async getZipBlob() {
                     let swarList = this.swarTimeData.map(d => d.swar);
                     let swarEngList = this.swarTimeData.map(d => this.swarsEng[d.keyIndex]);
                     let plainSwarTimeData = this.swarTimeData.map(d => {
@@ -1436,16 +1588,14 @@
                         return { duration, startTime, endTime, keyIndex, swar };
                     });
 
-
                     let zip = this.$options.zip;
-                    zip.file(this.projectFileName + '-swarTimeData.json', JSON.stringify(plainSwarTimeData));
-                    zip.file(this.projectFileName + '-omenad-swars.txt', swarList.join(' '));
-                    zip.file(this.projectFileName + '-eng-swars.txt', swarEngList.join(' '));
-                    zip.file(this.projectFileName + '-audio.ogg', this.$options.audioBlob, { base64: true });
+                    zip.file(this.projectName + '-swarTimeData.json', JSON.stringify(plainSwarTimeData));
+                    zip.file(this.projectName + '-omenad-swars.txt', swarList.join(' '));
+                    zip.file(this.projectName + '-eng-swars.txt', swarEngList.join(' '));
+                    zip.file(this.projectName + '-audio.ogg', this.$options.audioBlob, { base64: true });
 
-                    zip.generateAsync({ type: "blob" }).then((content) => {
-                        saveAs(content, this.projectFileName + '.zip');
-                    });
+                    let content = await zip.generateAsync({ type: "blob" });
+                    return content;
                 },
                 clearAll() {
                     this.$options.zip = new JSZip();
@@ -1455,19 +1605,61 @@
                     this.audioDataReady = false;
                     this.recState = 'NOT-RECORDING';
                     this.recStartDateTime = null;
-                    this.projectFileName = this.generateProjectFileName();
+                    this.projectName = this.generateProjectName();
+                    this.oldProjectName = '';
                 },
                 swarTimeDataItemClicked(d) {
                     console.log({ swarTimeDataItem: d });
                     // console.table(this.swarTimeData);
                 },
-                stopRecording() {
+                async stopRecording() {
                     let mediaRecorder = this.$options.mediaRecorder;
                     mediaRecorder.stop();
                     this.recState = 'STOPPED';
                     this.calculateSwarTimes();
 
                     console.table(this.swarTimeData.map(d => { return { st: d.startTime, et: d.endTime, swar: d.swar } }));
+
+
+                    // let name = this.getFileName();
+                    // if(!name) return;
+                    // let blob = await this.getZipBlob();
+                    // let fileName = name + '.zip';
+                    // let arrayBuffer = await blob.arrayBuffer();
+                    // let record = {type: 'Recordings', name, fileName, arrayBuffer};
+                    // if(this.oldProjectName.length > 0 && fileName != this.oldProjectName){
+                    //     //Update record
+                    //     let oldKey = this.oldProjectName.replace(/\.[^/.]+$/, "");
+                    //     await dbHelper.saveRecord(record, oldKey);
+                    // }else{
+                    //     //Insert record
+                    //     await dbHelper.saveRecord(record);
+                    // }
+                    // this.$router.app.$emit('onShowMessage', `Recording data is saved under file name: ${fileName}`);
+                    // this.oldProjectName = this.projectFileName;
+
+                    await this.saveRecord();
+
+                },
+                async saveRecord() {
+                    let name = this.getFileName();
+                    if (!name) return;
+                    let blob = await this.getZipBlob();
+                    let fileName = name + '.zip';
+                    let arrayBuffer = await blob.arrayBuffer();
+                    let record = { type: 'Recordings', name, fileName, arrayBuffer };
+                    if (this.oldProjectName.length > 0 && name != this.oldProjectName) {
+                        //Update record
+                        let oldKey = this.oldProjectName;
+                        await dbHelper.saveRecord(record, oldKey);
+                    } else {
+                        //Insert record
+                        await dbHelper.saveRecord(record);
+                    }
+                    this.$router.app.$emit('onShowMessage', `Recording data is saved under file name: ${fileName}`);
+                    this.oldProjectName = name;
+
+                    this.$router.app.$emit('onRenameTab', { tabIndex: this.tabIndex, name });
 
                 },
                 startRecording() {
@@ -1598,6 +1790,7 @@
             },
             created() {
                 console.log('Recorder created');
+
                 this.$options.chunks = [];
                 this.$options.zip = new JSZip();
                 const constraints = { audio: true };
@@ -1608,7 +1801,7 @@
                 }, () => {
                     console.log('Error getting: navigator.mediaDevices.getUserMedia');
                 });
-                this.projectFileName = this.generateProjectFileName();
+                this.projectName = this.generateProjectName();
 
 
                 WebMidi.enable().then(this.onMidiEnabled).catch(err => {
@@ -1628,6 +1821,8 @@
             template: '#main-template',
             data: () => {
                 return {
+                    showMesssage: false,
+                    message: '',
                     curTab: null,
                     tabTitleIndex: 1,
                     showFileDialog: false,
@@ -1659,43 +1854,67 @@
                     fileListHeaders: [
                         { text: 'Type', value: 'type' },
                         { text: 'Name', value: 'name' },
-                        { text: 'Created Date', value: 'createdDate' },
+                        { text: 'Created Date', value: 'createdDateStr' },
                         // { text: 'Modified Date', value: 'modifiedDate' },
                         { text: 'Actions', value: 'actions', sortable: false },
                     ],
                 }
             },
             methods: {
+                fileTableRowClicked(row) {
+                    console.log({ row });
+                },
                 async loadFilesListFromDB() {
                     this.filesList = [];
-                    let rawData = await dbHelper.getAllPlayerData();
-                    let playerData = rawData.map(d => {
-                        return { type: 'Players', ...d, actions: 0, createdDate: getFormattedDate(d.createdDate), name: d.fileName }
+
+                    // let rawData = await dbHelper.getAllPlayerData();
+                    // let playerData = rawData.map(d => {
+                    //     return { type: 'Players', ...d, actions: 0, createdDate: getFormattedDate(d.createdDate) }
+                    // });
+
+
+                    let rawData = await dbHelper.getAllData();
+                    rawData.forEach(d => {
+                        d.actions = 0;
+                        d.createdDateStr = getFormattedDate(d.createdDate);
                     });
-                    this.filesList.push(...playerData);
-                    console.log({ playerData, filesList: this.filesList });
+
+                    this.filesList.push(...rawData);
+                    // console.log({ filesList: this.filesList });
                 },
-                addNewPlayer() {
+                addNewPlayer(context) {
                     console.log('addNewPlayer called');
                     this.tabTitleIndex++;
-                    this.tabs.push({ title: 'Play-' + this.tabTitleIndex, type: 'play' });
+                    let title = 'Play-' + this.tabTitleIndex;
+                    if (context && context.name) title = context.name;
+                    this.tabs.push({ title, type: 'play', context });
                     this.curTab = this.tabs.length - 1;
                 },
                 addNewRecording() {
                     console.log('addNewRecording called');
                     this.tabTitleIndex++;
-                    this.tabs.push({ title: 'Rec-' + this.tabTitleIndex, type: 'rec' });
+                    let title = 'Rec-' + this.tabTitleIndex;
+                    // if(context && context.name) title = context.name;
+                    this.tabs.push({ title, type: 'rec' });
                     this.curTab = this.tabs.length - 1;
                 },
-                addNewSwarEdit(swarTxt) {
-                    console.log('addNewSwarEdit called: ', swarTxt);
+                addNewSwarEdit(context) {
+                    console.log('addNewSwarEdit called: ', { context });
+                    let title = 'SEdit-' + this.tabTitleIndex;
+                    if (!context) {
+                        context = { name: title }
+                    }
                     this.tabTitleIndex++;
-                    this.tabs.push({ title: 'SEdit-' + this.tabTitleIndex, type: 'swarEdit', swarTxt });
+                    this.tabs.push({ title, type: 'swarEdit', context });
                     this.curTab = this.tabs.length - 1;
                 },
                 listFiles() {
                     this.loadFilesListFromDB();
                     this.showFileDialog = true;
+                },
+                renameTab(info) {
+                    console.log({ info });
+                    this.tabs[info.tabIndex].title = info.name;
                 },
                 closeTab(tabIndex) {
                     let refId = this.tabs[tabIndex].type + '-' + tabIndex;
@@ -1707,33 +1926,21 @@
                     this.tabs.splice(tabIndex, 1);
                     console.log('closeTab called...');
                 },
-                createFilesList() {
-                    this.filesList = [
-                        ...this.files.Recordings.map(d => {
-                            return {
-                                ...d,
-                                createdDate: getFormattedDate(d.createdDate),
-                                // modifiedDate: getFormattedDate(d.modifiedDate),
-                                type: "Recordings", actions: 0
-                            }
-                        }),
-                        ...this.files.Players.map(d => {
-                            return {
-                                ...d,
-                                createdDate: getFormattedDate(d.createdDate),
-                                // modifiedDate: getFormattedDate(d.modifiedDate),
-                                type: "Players", actions: 0
-                            }
-                        }),
-                        ...this.files.Editors.map(d => {
-                            return {
-                                ...d,
-                                createdDate: getFormattedDate(d.createdDate),
-                                // modifiedDate: getFormattedDate(d.modifiedDate),
-                                type: "Editors", actions: 0
-                            }
-                        })
-                    ]
+                async deleteRecord(record) {
+                    await dbHelper.deleteRecord(record);
+                    console.log('Deleted...', { record });
+                    this.loadFilesListFromDB();
+                },
+                openRecord(record) {
+                    console.log('Opening...', { record });
+                    if (record.type == 'Editors') {
+                        this.addNewSwarEdit();
+                        this.showFileDialog = false;
+                    }
+                },
+                openShowMessage(msg) {
+                    this.message = msg;
+                    this.showMesssage = true;
                 }
             },
             mounted() {
@@ -1748,6 +1955,8 @@
                 this.$router.app.$on('onAddNewPlayer', this.addNewPlayer);
                 this.$router.app.$on('onAddNewSwarEdit', this.addNewSwarEdit);
                 this.$router.app.$on('onListFiles', this.listFiles);
+                this.$router.app.$on('onRenameTab', this.renameTab);
+                this.$router.app.$on('onShowMessage', this.openShowMessage);
 
 
                 console.log('Main created');
@@ -2020,8 +2229,8 @@
                     }
                 },
                 mounted() {
-                    // this.addNewRecording();
-                    this.addNewPlayer();
+                    this.addNewRecording();
+                    // this.addNewPlayer();
                     // this.addNewSwarEdit();
                 }
             })
@@ -2049,27 +2258,60 @@
         async function initDB() {
             db = await idb.openDB(dbName, 1, {
                 upgrade(db) {
-                    db.createObjectStore(stores.Players.name);
-                    db.createObjectStore(stores.Editors.name);
-                    db.createObjectStore(stores.Recordings.name);
+                    db.createObjectStore(storeNames[0]);
+                    db.createObjectStore(storeNames[1]);
+                    db.createObjectStore(storeNames[2]);
                 },
             });
             console.log('DB is connected.');
 
             dbHelper = {
-                addPlayerData: async (fileName, arrayBuffer) => {
-                    let record = { fileName, arrayBuffer, createdDate: new Date() };
-                    console.log('Saving file...', record);
-                    await db.put(stores.Players.name, record, fileName);
-                    // await stores.Players.store.put({fileName}, fileName);
+                saveRecord: async (record, oldKey) => {
+                    record.createdDate = new Date();
+                    console.log('Saving record...', record);
+                    await db.put(record.type, record, record.name);
+                    if (oldKey) {
+                        console.log('Deleting old key: ', oldKey);
+                        await db.delete(record.type, oldKey);
+                    }
                 },
 
-                getAllPlayerData: async () => {
-                    // return await db.getAllKeys(stores.Players.name);
-                    let data = await db.getAll(stores.Players.name);
-                    console.log({ data });
-                    return data;
-                }
+                getAllData: async () => {
+                    let allData = [];
+                    for (const storeName of storeNames) {
+                        let data = await db.getAll(storeName);
+                        data.forEach(d => {
+                            d.type = storeName;
+                        });
+                        // console.log({ data });
+                        allData = [...allData, ...data];
+                    }
+                    // console.log({ allData });
+                    return allData;
+                },
+
+                deleteRecord: async (record) => {
+                    await db.delete(record.type, record.name);
+                },
+
+
+
+                // addPlayerData: async (fileName, arrayBuffer) => {
+                //     let name = fileName.replace(/\.[^/.]+$/, "");
+                //     let record = { name, fileName, arrayBuffer, createdDate: new Date() };
+                //     console.log('Saving file...', record);
+                //     await db.put(stores.Players.name, record, name);
+                //     // await stores.Players.store.put({fileName}, fileName);
+                //     return name;
+                // },
+
+                // getAllPlayerData: async () => {
+                //     // return await db.getAllKeys(stores.Players.name);
+                //     let data = await db.getAll(stores.Players.name);
+                //     console.log({ data });
+                //     return data;
+                // }
+
             }
             console.log('dbHelper is ready.');
 
