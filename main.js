@@ -8,7 +8,8 @@ let pianoKeys = [...oneOctive, ...oneOctive, ...oneOctive];
 
 const SwarEdit = Vue.component('Swaredit', {
     template: '#swaredit-template',
-    props: ['swarTxt', 'name', 'tabIndex'],
+    props: ['context', 'tabIndex'],
+    //'swarTxt', 'name', , 
     data() {
         return {
             showGuide: false,
@@ -152,10 +153,23 @@ const SwarEdit = Vue.component('Swaredit', {
     mounted() {
     },
     created() {
-        console.log('SwarEdit created');
 
-        this.formattedSwars = this.swarTxt;
-        console.log({ swarTxt: this.swarTxt });
+        if (this.context) {
+            this.name = this.context.name;
+            if(this.context.type == 'Recordings'){
+                //Need to open ths zip and get swarTxt in the context
+                //TODO: Open zip and set this.swarTxt
+            }else if(this.context.type == 'Players'){
+                //swarTxt is in the context
+                this.swarTxt = this.context.swarTxt;
+            }
+            this.formattedSwars = this.swarTxt;
+        }else{
+            this.formattedSwars = '';
+        }    
+
+        // this.formattedSwars = this.swarTxt;
+        // console.log({ swarTxt: this.swarTxt });
 
         //TODO: Remove following
         if (this.formattedSwars == '') {
@@ -172,6 +186,7 @@ const SwarEdit = Vue.component('Swaredit', {
             // this.createZip(false);
             this.saveRecord();
         }
+        console.log('SwarEdit created');
     }
 })
 
@@ -203,7 +218,7 @@ const Player = Vue.component('Player', {
     methods: {
         openFormatSwars() {
             let swarTxt = this.swarTimeData.map(d => d.swar).join(' ');
-            this.$router.app.$emit('onAddNewSwarEdit', { swarTxt, name: this.name + '-swars' });
+            this.$router.app.$emit('onAddNewSwarEdit', { swarTxt, name: this.name + '-swars', type: 'Players' });
             // console.log({ show });
         },
         swarTimeDataItemClicked(d) {
@@ -286,15 +301,17 @@ const Player = Vue.component('Player', {
                         fileName = this.context.name;
                     } else {
                         fileName = this.chosenFile.name;
+
+                        // fileName = origFileName;
+                        let name = fileName.replace(/\.[^/.]+$/, "");
+                        // let record = { type: 'Players', name, fileName, createdDate: new Date(), arrayBuffer: ev.target.result };
+                        let record = { type: 'Players', name, fileName, zipBlob };
+                        await dbHelper.saveRecord(record);
+                        this.fileName = fileName;
+                        this.name = name;
+                        this.$router.app.$emit('onRenameTab', { tabIndex: this.tabIndex, name });
+
                     }
-                    // fileName = origFileName;
-                    let name = fileName.replace(/\.[^/.]+$/, "");
-                    // let record = { type: 'Players', name, fileName, createdDate: new Date(), arrayBuffer: ev.target.result };
-                    let record = { type: 'Players', name, fileName, zipBlob };
-                    await dbHelper.saveRecord(record);
-                    this.fileName = fileName;
-                    this.name = name;
-                    this.$router.app.$emit('onRenameTab', { tabIndex: this.tabIndex, name });
                 }
             }).catch(function (err) {
                 console.error("Failed to open ZIP file:", err);
@@ -483,15 +500,23 @@ const Recorder = Vue.component('Recorder', {
             let fileName = name + '.zip';
             this.$router.app.$emit('onAddNewPlayer', { zipBlob, name, fileName });
         },
+        async openInSwarEditor(){
+            let name = this.getFileName();
+            if (!name) return;
+            let zipBlob = await this.getZipBlob();
+            let fileName = name + '.zip';
+            this.$router.app.$emit('onAddNewSwarEdit', { zipBlob, name, fileName, type: 'Recordings' });
+        },
         generateProjectName() {
-            const date = new Date();
-            var fileName = date.getFullYear() + '-'
-                + ('0' + (date.getMonth() + 1)).slice(-2) + '-'
-                + ('0' + date.getDate()).slice(-2) + '-'
-                + ('0' + date.getHours()).slice(-2) + '-'
-                + ('0' + date.getMinutes()).slice(-2) + '-'
-                + ('0' + date.getSeconds()).slice(-2);
-            return fileName;
+            return getFileNameFromDate();
+            // const date = new Date();
+            // var fileName = date.getFullYear() + '-'
+            //     + ('0' + (date.getMonth() + 1)).slice(-2) + '-'
+            //     + ('0' + date.getDate()).slice(-2) + '-'
+            //     + ('0' + date.getHours()).slice(-2) + '-'
+            //     + ('0' + date.getMinutes()).slice(-2) + '-'
+            //     + ('0' + date.getSeconds()).slice(-2);
+            // return fileName;
         },
         getFileName() {
             this.$refs.form.validate();
@@ -705,8 +730,9 @@ const Main = Vue.component('Main', {
             showMesssage: false,
             message: '',
             curTab: null,
-            tabTitleIndex: 1,
+            // tabTitleIndex: 1,
             showFileDialog: false,
+            showDeleteConfirmDialog: false,
             tabs: [
                 {
                     title: 'Welcome',
@@ -723,6 +749,15 @@ const Main = Vue.component('Main', {
         }
     },
     methods: {
+        async deleteRecordConfirmed(){
+            // console.log('Deleting confirmed...', this.recordToBeDeleted);
+            await this.deleteRecord(this.recordToBeDeleted);
+            this.showDeleteConfirmDialog = false;
+        },
+        showDeleteConfirmDialogBox(record){
+            this.recordToBeDeleted = record;
+            this.showDeleteConfirmDialog = true;
+        },
         fileTableRowClicked(row) {
             console.log({ row });
         },
@@ -739,28 +774,35 @@ const Main = Vue.component('Main', {
         },
         addNewPlayer(context) {
             console.log('addNewPlayer called');
-            this.tabTitleIndex++;
-            let title = 'Play-' + this.tabTitleIndex;
+            // this.tabTitleIndex++;
+            // let title = 'Play-' + this.tabTitleIndex;
+            let title = getFileNameFromDate();
             if (context && context.name) title = context.name;
-            this.tabs.push({ title, type: 'play', context });
+            this.tabs.push({ title, type: 'Players', context });
             this.curTab = this.tabs.length - 1;
         },
         addNewRecording() {
             console.log('addNewRecording called');
-            this.tabTitleIndex++;
-            let title = 'Rec-' + this.tabTitleIndex;
+            // this.tabTitleIndex++;
+            // let title = 'Rec-' + this.tabTitleIndex;
+            let title = getFileNameFromDate();
             // if(context && context.name) title = context.name;
-            this.tabs.push({ title, type: 'rec' });
+            this.tabs.push({ title, type: 'Recordings' });
             this.curTab = this.tabs.length - 1;
         },
         addNewSwarEdit(context) {
             console.log('addNewSwarEdit called: ', { context });
-            let title = 'SEdit-' + this.tabTitleIndex;
+            // let title = 'SEdit-' + this.tabTitleIndex;
+            let title = getFileNameFromDate();
             if (!context) {
                 context = { name: title }
+            }else if(context.type == 'Recordings'){
+                //Need to open ths zip and get swarTxt in the context
+            }else if(context.type == 'Players'){
+                //swarTxt is in the context
             }
-            this.tabTitleIndex++;
-            this.tabs.push({ title, type: 'swarEdit', context });
+            // this.tabTitleIndex++;
+            this.tabs.push({ title, type: 'Editors', context });
             this.curTab = this.tabs.length - 1;
         },
         listFiles() {
@@ -795,7 +837,7 @@ const Main = Vue.component('Main', {
                 // Recordings are opened using Player
                 this.addNewPlayer(record);
             } else if (record.type == 'Players') {
-                this.addNewPlayer();
+                this.addNewPlayer(record);
             }
             this.showFileDialog = false;
         },
@@ -836,7 +878,7 @@ const Welcome = Vue.component('Welcome', {
     },
     async mounted() {
         let welcomeMDtxt = await fetch('README.md').then(res => res.text());
-        console.log(welcomeMDtxt);
+        // console.log(welcomeMDtxt);
         this.bodyHTML = marked.parse(welcomeMDtxt);
     },
     created() {
@@ -891,9 +933,9 @@ function initVue() {
             }
         },
         mounted() {
-            this.addNewRecording();
-            this.addNewPlayer();
-            this.addNewSwarEdit();
+            // this.addNewRecording();
+            // this.addNewPlayer();
+            // this.addNewSwarEdit();
         }
     })
 }
@@ -917,7 +959,7 @@ async function initDB() {
             db.createObjectStore(storeNames[2]);
         },
     });
-    console.log('DB is connected.');
+    console.log('DB is connected');
 
     dbHelper = {
         saveRecord: async (record, oldKey) => {
@@ -947,50 +989,8 @@ async function initDB() {
         deleteRecord: async (record) => {
             await db.delete(record.type, record.name);
         },
-
-
-
-        // addPlayerData: async (fileName, arrayBuffer) => {
-        //     let name = fileName.replace(/\.[^/.]+$/, "");
-        //     let record = { name, fileName, arrayBuffer, createdDate: new Date() };
-        //     console.log('Saving file...', record);
-        //     await db.put(stores.Players.name, record, name);
-        //     // await stores.Players.store.put({fileName}, fileName);
-        //     return name;
-        // },
-
-        // getAllPlayerData: async () => {
-        //     // return await db.getAllKeys(stores.Players.name);
-        //     let data = await db.getAll(stores.Players.name);
-        //     console.log({ data });
-        //     return data;
-        // }
-
     }
-    console.log('dbHelper is ready.');
-
-
-    // stores.Players.store = db.transaction(stores.Players.name, 'readwrite').objectStore(stores.Players.name);
-    // stores.Editors.store = db.transaction(stores.Editors.name, 'readwrite').objectStore(stores.Editors.name);
-    // stores.Recordings.store = db.transaction(stores.Recordings.name, 'readwrite').objectStore(stores.Recordings.name);
-
-    // let val = { name: 'Kaushik', id: 25 };
-    // await store.put(val, "25");
-
-    // let val = { name: 'Kaushik', id: 26 };
-    // await stores.Players.store.put(val, "26");
-
-    // const value = await store.get("25");
-    // console.log({ value });
-
-    // const tx = db.transaction(storeName, 'readwrite'); 
-    // const store = tx.store;            
-
-    // let val = {name: 'Kaushik', id: 25};
-    // await store.put(storeName, val, val.id);            
-    // const value = await store.get(storeName, 25);
-    // console.log({value});
-
+    console.log('dbHelper is ready');
 }
 
 
@@ -1000,6 +1000,16 @@ async function initDB() {
 })();
 
 
+function getFileNameFromDate(){
+    const date = new Date();
+    var fileName = date.getFullYear() + '-'
+        + ('0' + (date.getMonth() + 1)).slice(-2) + '-'
+        + ('0' + date.getDate()).slice(-2) + '-'
+        + ('0' + date.getHours()).slice(-2) + '-'
+        + ('0' + date.getMinutes()).slice(-2) + '-'
+        + ('0' + date.getSeconds()).slice(-2);
+    return fileName;
+}
 
 
 function getFormattedDate(date) {

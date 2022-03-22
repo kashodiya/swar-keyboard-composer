@@ -26,6 +26,12 @@ Connect your computer to your keyboard using MIDI cable.
 - Click Play icon on the audio player.
 - You will hear the audio and keyboard will show which swar is being played.
 
+#### Where is data/files stored?
+- All work is stored in your browser.
+- Click on Files button to get list and open your work again.
+- It is recommanded to download a copy and store it in safe place.
+
+
 <br>
 
 ### Waht is in the ZIP file?
