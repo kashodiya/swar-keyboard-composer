@@ -152,21 +152,41 @@ const SwarEdit = Vue.component('Swaredit', {
     },
     mounted() {
     },
-    created() {
+    async created() {
 
         if (this.context) {
+            console.log('SwarEdit created with context = ', this.context);
             this.name = this.context.name;
-            if(this.context.type == 'Recordings'){
-                //Need to open ths zip and get swarTxt in the context
-                //TODO: Open zip and set this.swarTxt
-            }else if(this.context.type == 'Players'){
+            if (this.context.type == 'Recordings') {
+                //When SwarEditor is called from Recordings, we need to get swarTxt from <name>-swarTimeData.json file from zipBlob 
+                let files = await unzip(this.context.zipBlob);
+                console.log({files});
+
+                // let swarTimeDataFileInfo = files.find(f => f.fileName.indexOf('-swarTimeData.json') > -1);
+                // if(swarTimeDataFileInfo){
+                //     let swarTimeData = swarTimeDataFileInfo.content;
+                //     this.swarTxt = swarTimeData.map(d => d.swar).join(' ');
+                // }else{
+                //     console.error('Rcording context passed to SwarExit does not have *-swarTimeData.json in the zipBlob');
+                // }
+
+                
+                let swarFileInfo = files.find(f => f.fileName.indexOf('-omenad-swars.txt') > -1);
+                if(swarFileInfo){
+                    this.swarTxt = swarFileInfo.content;
+                }else{
+                    console.error('Rcording context passed to SwarExit does not have *-omenad-swars.txt in the zipBlob');
+                }
+
+
+            } else if (this.context.type == 'Players') {
                 //swarTxt is in the context
                 this.swarTxt = this.context.swarTxt;
             }
             this.formattedSwars = this.swarTxt;
-        }else{
+        } else {
             this.formattedSwars = '';
-        }    
+        }
 
         // this.formattedSwars = this.swarTxt;
         // console.log({ swarTxt: this.swarTxt });
@@ -270,54 +290,39 @@ const Player = Vue.component('Player', {
             this.$refs.pianoKeys.style.width = pianoWidth + 'em';
         },
         async loadZipFile(zipBlob, origFileName) {
-
-            JSZip.loadAsync(zipBlob).then(async (zip) => {
-                console.log({ zip });
-                for (var fileName of Object.keys(zip.files)) {
-                    console.log(fileName);
-                    if (fileName.indexOf('-audio.ogg') != -1) {
-                        zip.file(fileName).async("ArrayBuffer").then((audioData) => {
-                            // console.log({ audioData });
-                            const blob = new Blob([audioData], { type: "audio/wav" });
-                            this.$refs.playerAudio.src = window.URL.createObjectURL(blob);
-                            console.log('Successfully got audio from zip file.')
-                        })
-                    } else if (fileName.indexOf('-swarTimeData.json') != -1) {
-                        zip.file(fileName).async("text").then((jsonTxt) => {
-                            // console.log({ jsonTxt });
-                            this.swarTimeData = JSON.parse(jsonTxt);
-                            console.table(this.swarTimeData.map(d => { return { st: d.startTime, et: d.endTime, swar: d.swar } }));
-                            this.preparePiano();
-                            console.log('Successfully got swarTimeData from zip file.')
-                        })
-                    }
+            let files = await unzip(zipBlob);
+            console.log({files});
+            files.forEach(fileInfo => {
+                if(fileInfo.ext == 'ogg'){
+                    //audio/ogg; codecs=opus
+                    this.$refs.playerAudio.src = window.URL.createObjectURL(fileInfo.content);
+                }else if(fileInfo.ext == 'json'){
+                    this.swarTimeData = fileInfo.content;
+                    console.table(this.swarTimeData.map(d => { return { st: d.startTime, et: d.endTime, swar: d.swar } }));
+                    this.preparePiano();
                 }
+            });
 
-                if (this.context && this.context.type == "Recordings") {           //This tab is opened by Recordings tab or a db record of it
-                    console.log('Because the context is a Recording record. Skipping the DB save.')
-                    this.$router.app.$emit('onRenameTab', { tabIndex: this.tabIndex, name: this.context.name });
+            if (this.context && this.context.type == "Recordings") {           //This tab is opened by Recordings tab or a db record of it
+                console.log('Because the context is a Recording record. Skipping the DB save.')
+                this.$router.app.$emit('onRenameTab', { tabIndex: this.tabIndex, name: this.context.name });
+            } else {
+                if (this.context) {
+                    // fileName = this.context.name;
                 } else {
-                    if (this.context) {
-                        fileName = this.context.name;
-                    } else {
-                        fileName = this.chosenFile.name;
+                    let fileName = this.chosenFile.name;
 
-                        // fileName = origFileName;
-                        let name = fileName.replace(/\.[^/.]+$/, "");
-                        // let record = { type: 'Players', name, fileName, createdDate: new Date(), arrayBuffer: ev.target.result };
-                        let record = { type: 'Players', name, fileName, zipBlob };
-                        await dbHelper.saveRecord(record);
-                        this.fileName = fileName;
-                        this.name = name;
-                        this.$router.app.$emit('onRenameTab', { tabIndex: this.tabIndex, name });
+                    // fileName = origFileName;
+                    let name = fileName.replace(/\.[^/.]+$/, "");
+                    // let record = { type: 'Players', name, fileName, createdDate: new Date(), arrayBuffer: ev.target.result };
+                    let record = { type: 'Players', name, fileName, zipBlob };
+                    await dbHelper.saveRecord(record);
+                    this.fileName = fileName;
+                    this.name = name;
+                    this.$router.app.$emit('onRenameTab', { tabIndex: this.tabIndex, name });
 
-                    }
                 }
-            }).catch(function (err) {
-                console.error("Failed to open ZIP file:", err);
-            })
-
-
+            }
         },
         readChosenFile() {
             if (!this.chosenFile) {
@@ -333,57 +338,8 @@ const Player = Vue.component('Player', {
             reader.onerror = function (err) {
                 console.error("Failed to read file", err);
             }
-            const arrayBuffer = reader.readAsArrayBuffer(this.chosenFile);
-        },
-        XXreadChosenFile() {
-            if (!this.chosenFile) {
-                this.data = "No File Chosen";
-                //TODO: Show this err to user?
-                return;
-            };
-            var reader = new FileReader();
-            reader.onload = (ev) => {
-                JSZip.loadAsync(ev.target.result).then(async (zip) => {
-                    console.log({ zip });
-                    for (var fileName of Object.keys(zip.files)) {
-                        console.log(fileName);
-                        if (fileName.indexOf('-audio.ogg') != -1) {
-                            zip.file(fileName).async("ArrayBuffer").then((audioData) => {
-                                // console.log({ audioData });
-                                const blob = new Blob([audioData], { type: "audio/wav" });
-                                this.$refs.playerAudio.src = window.URL.createObjectURL(blob);
-                                console.log('Successfully got audio from zip file.')
-                            })
-                        } else if (fileName.indexOf('-swarTimeData.json') != -1) {
-                            zip.file(fileName).async("text").then((jsonTxt) => {
-                                // console.log({ jsonTxt });
-                                this.swarTimeData = JSON.parse(jsonTxt);
-                                console.table(this.swarTimeData.map(d => { return { st: d.startTime, et: d.endTime, swar: d.swar } }));
-                                this.preparePiano();
-                                console.log('Successfully got swarTimeData from zip file.')
-                            })
-                        }
-                    }
-
-                    fileName = this.chosenFile.name;
-                    let name = fileName.replace(/\.[^/.]+$/, "");
-                    // let record = { type: 'Players', name, fileName, createdDate: new Date(), arrayBuffer: ev.target.result };
-                    let record = { type: 'Players', name, fileName, zipBlob: ev.target.result };
-                    await dbHelper.saveRecord(record);
-
-                    this.fileName = this.chosenFile.name;
-                    this.name = name;
-                    this.$router.app.$emit('onRenameTab', { tabIndex: this.tabIndex, name });
-
-                }).catch(function (err) {
-                    console.error("Failed to open ZIP file:", err);
-                })
-            };
-            reader.onerror = function (err) {
-                console.error("Failed to read file", err);
-            }
-
-            const arrayBuffer = reader.readAsArrayBuffer(this.chosenFile);
+            // const arrayBuffer = reader.readAsArrayBuffer(this.chosenFile);
+            reader.readAsArrayBuffer(this.chosenFile);
         },
         clearSwarHighlights() {
             this.swarTimeData.forEach((d, i) => {
@@ -461,6 +417,7 @@ const Player = Vue.component('Player', {
         if (this.context != null) {
             console.log('Player created with context = ');
             console.log(this.context);
+            this.name = this.context.fileName;
             this.loadZipFile(this.context.zipBlob, this.context.fileName);
         }
     },
@@ -476,6 +433,7 @@ const Recorder = Vue.component('Recorder', {
     props: ['tabIndex'],
     data() {
         return {
+            dbRecord: null,
             audioDataReady: false,
             rules: {
                 required: value => !!value || 'Please enter download file name.'
@@ -496,16 +454,36 @@ const Recorder = Vue.component('Recorder', {
         async openInPlayer() {
             let name = this.getFileName();
             if (!name) return;
-            let zipBlob = await this.getZipBlob();
-            let fileName = name + '.zip';
-            this.$router.app.$emit('onAddNewPlayer', { zipBlob, name, fileName });
+
+            // let zipBlob = await this.getZipBlob();
+            // let fileName = name + '.zip';
+            // this.$router.app.$emit('onAddNewPlayer', { zipBlob, name, fileName });
+
+
+
+
+            // Get the record from DB of this recording
+            // let context = await dbHelper.getByName('Recordings', name);
+            // this.$router.app.$emit('onAddNewPlayer', context);
+
+            this.$router.app.$emit('onAddNewPlayer', this.dbRecord);
+
+
+            // console.log('Conpare this:', {zipBlobFromDB: context.zipBlob, zipBlob});
+            // console.log('UNZIP of zipBlobFromDB');
+            // await unzip(context.zipBlob);
+            // console.log('UNZIP of zipBlob');
+            // await unzip(zipBlob);
+
         },
-        async openInSwarEditor(){
+        async openInSwarEditor() {
             let name = this.getFileName();
             if (!name) return;
-            let zipBlob = await this.getZipBlob();
-            let fileName = name + '.zip';
-            this.$router.app.$emit('onAddNewSwarEdit', { zipBlob, name, fileName, type: 'Recordings' });
+            // let zipBlob = await this.getZipBlob();
+            // let fileName = name + '.zip';
+
+            let context = await dbHelper.getByName('Recordings', name);
+            this.$router.app.$emit('onAddNewSwarEdit', context);
         },
         generateProjectName() {
             return getFileNameFromDate();
@@ -518,7 +496,7 @@ const Recorder = Vue.component('Recorder', {
             //     + ('0' + date.getSeconds()).slice(-2);
             // return fileName;
         },
-        getFileName() {
+        getFileName() {     //Returns false or string
             this.$refs.form.validate();
             if (this.projectName == '') {
                 // this.message = "Please enter file name";
@@ -528,13 +506,14 @@ const Recorder = Vue.component('Recorder', {
             }
             return this.projectName;
         },
-        async download() {
+        download() {
             let name = this.getFileName();
             if (!name) return;
-            let content = await this.getZipBlob();
+            // let content = await this.getZipBlob();
+            let content = this.dbRecord.zipBlob;
             let fileName = name + '.zip';
             saveAs(content, fileName);
-            await this.saveRecord();
+            // await this.saveRecord();
             this.oldProjectName = name;
         },
         async getZipBlob() {
@@ -564,7 +543,8 @@ const Recorder = Vue.component('Recorder', {
             this.recState = 'NOT-RECORDING';
             this.recStartDateTime = null;
             this.projectName = this.generateProjectName();
-            this.oldProjectName = '';
+            // this.oldProjectName = '';
+            this.projectName = this.generateProjectName();
         },
         swarTimeDataItemClicked(d) {
             console.log({ swarTimeDataItem: d });
@@ -576,8 +556,7 @@ const Recorder = Vue.component('Recorder', {
             this.recState = 'STOPPED';
             this.calculateSwarTimes();
             console.table(this.swarTimeData.map(d => { return { st: d.startTime, et: d.endTime, swar: d.swar } }));
-            await this.saveRecord();
-
+            // await this.saveRecord();
         },
         async saveRecord() {
             let name = this.getFileName();
@@ -598,6 +577,7 @@ const Recorder = Vue.component('Recorder', {
             this.oldProjectName = name;
 
             this.$router.app.$emit('onRenameTab', { tabIndex: this.tabIndex, name });
+            this.dbRecord = record;
         },
         startRecording() {
             let chunks = this.$options.chunks;
@@ -618,6 +598,7 @@ const Recorder = Vue.component('Recorder', {
                 const audioURL = window.URL.createObjectURL(blob);
                 recordingAudio.src = audioURL;
                 this.audioDataReady = true;
+                await this.saveRecord();
             }
             mediaRecorder.ondataavailable = function (e) {
                 console.log('Getting chunks...')
@@ -749,17 +730,20 @@ const Main = Vue.component('Main', {
         }
     },
     methods: {
-        async deleteRecordConfirmed(){
+        async deleteRecordConfirmed() {
             // console.log('Deleting confirmed...', this.recordToBeDeleted);
             await this.deleteRecord(this.recordToBeDeleted);
             this.showDeleteConfirmDialog = false;
         },
-        showDeleteConfirmDialogBox(record){
+        showDeleteConfirmDialogBox(record) {
             this.recordToBeDeleted = record;
             this.showDeleteConfirmDialog = true;
         },
-        fileTableRowClicked(row) {
+        async fileTableRowClicked(row) {
             console.log({ row });
+            if(row.zipBlob){
+                await unzip(row.zipBlob);
+            }
         },
         async loadFilesListFromDB() {
             this.filesList = [];
@@ -796,9 +780,9 @@ const Main = Vue.component('Main', {
             let title = getFileNameFromDate();
             if (!context) {
                 context = { name: title }
-            }else if(context.type == 'Recordings'){
+            } else if (context.type == 'Recordings') {
                 //Need to open ths zip and get swarTxt in the context
-            }else if(context.type == 'Players'){
+            } else if (context.type == 'Players') {
                 //swarTxt is in the context
             }
             // this.tabTitleIndex++;
@@ -810,7 +794,7 @@ const Main = Vue.component('Main', {
             this.showFileDialog = true;
         },
         renameTab(info) {
-            console.log({ info });
+            console.log('Renaming the tab: ', { info });
             this.tabs[info.tabIndex].title = info.name;
         },
         closeTab(tabIndex) {
@@ -972,6 +956,10 @@ async function initDB() {
             }
         },
 
+        getByName: async (storeName, name) => {
+            return await db.get(storeName, name);
+        },
+
         getAllData: async () => {
             let allData = [];
             for (const storeName of storeNames) {
@@ -1000,7 +988,36 @@ async function initDB() {
 })();
 
 
-function getFileNameFromDate(){
+async function unzip(zipBlob) {
+    let zip = await JSZip.loadAsync(zipBlob);
+    var re = /(?:\.([^.]+))?$/;
+    let files = [];
+    console.log({ zip });
+    for (var fileName of Object.keys(zip.files)) {
+        console.log(fileName);
+        var ext = re.exec(fileName)[1];
+        if(ext == 'ogg'){
+            let audioData = await zip.file(fileName).async("ArrayBuffer")
+            // const blob = new Blob([audioData], { type: "audio/wav" });
+            const blob = new Blob([audioData], { type: "audio/ogg" });
+            // const blob = new Blob([audioData]);
+            // audio/ogg; codecs=opus
+            console.log('Successfully got audio from zip file.');
+            files.push({fileName, ext, content: blob});
+        }else if(ext == 'json'){
+            let jsonTxt = await zip.file(fileName).async("text");
+            files.push({fileName, ext, content: JSON.parse(jsonTxt)});
+            console.log('Successfully got JSON content.');
+        }else{  //This handles .txt and .html etc. files
+            let content = await zip.file(fileName).async("text");
+            files.push({fileName, ext, content});
+            console.log('Successfully got text content.');
+        }
+    }
+    return files;
+}
+
+function getFileNameFromDate() {
     const date = new Date();
     var fileName = date.getFullYear() + '-'
         + ('0' + (date.getMonth() + 1)).slice(-2) + '-'
