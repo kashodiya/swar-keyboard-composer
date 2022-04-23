@@ -866,20 +866,43 @@ const Main = Vue.component('Main', {
             this.message = msg;
             this.showMesssage = true;
         },
-        async downloadZipFileAndOpenInPlayer(url){
-
+        async getGitHubBlobUrlForPath(owner, repo, path){
             // Following will give you a JSON of all the files in Git repo
-            // url = "https://api.github.com/repos/kashodiya/raag-files/git/trees/main?recursive=1";
-            // let data = await fetch(url).then(r => r.json());
-            // console.log(data.tree[7].url);
-
-            url = 'https://api.github.com/repos/kashodiya/raag-files/git/blobs/58fcae2ad848fedaea2d1e694b7bb45ab72fd6d4';
-            // console.log({url});
+            let url = `https://api.github.com/repos/${owner}/${repo}/git/trees/main?recursive=1`;
             let data = await fetch(url).then(r => r.json());
+            console.log({url, data});
+            let blobUrl;
+            let treeItem = data.tree.find(t => t.path == path);
+            if(treeItem){
+                blobUrl = treeItem.url;
+            }
+            return blobUrl;
+        },
+        async downloadZipFileAndOpenInPlayer(gitPermaLink){
+            //gitPermaLink is like https://github.com/kashodiya/raag-files/blob/3fdd550943223160244ce8fb4dbf17a00899b495/raags/maru-bihag/raam-aakar-bane-man-mera/raam-aakar-bane-man-mera-asthayee-1.zip
+            //Get owner, repo and path from it
+            let parts = gitPermaLink.split("/")
+            let owner = parts[3];
+            let repo = parts[4];
+            let gitFilePath = parts.slice(7).join("/");
+            //A path looks like this: "raags/maru-bihag/raam-aakar-bane-man-mera/raam-aakar-bane-man-mera-antra-1.zip"
+            url = await this.getGitHubBlobUrlForPath(owner, repo, gitFilePath);
+            console.log({url, owner, repo, gitFilePath});
+            let data = await fetch(url).then(r => r.json());
+            console.log(data);
             let zip = await JSZip.loadAsync(data.content, {base64: true});
             console.log(zip.files);
 
+            let zipBlob = await zip.generateAsync({ type: "blob" });
+            let fileName = parts[parts.length - 1];
+            let name = fileName.replace(/\.[^/.]+$/, "");
+            let record = { type: 'Recordings', name, fileName, zipBlob };
+
+            console.log({record});
+            dbHelper.saveRecord(record);
+            this.$router.app.$emit('onAddNewPlayer', record);
             //xxx
+
 
         }
     },
@@ -895,9 +918,10 @@ const Main = Vue.component('Main', {
         this.$router.app.$on('onRenameTab', this.renameTab);
         this.$router.app.$on('onShowMessage', this.openShowMessage);
 
-        console.log('sourceUrl = ', this.$route.query.sourceUrl);
-        if(this.$route.query.sourceUrl){
-            this.downloadZipFileAndOpenInPlayer(this.$route.query.sourceUrl);
+        //gitPermaLink=https://github.com/kashodiya/raag-files/blob/3fdd550943223160244ce8fb4dbf17a00899b495/raags/maru-bihag/raam-aakar-bane-man-mera/raam-aakar-bane-man-mera-asthayee-1.zip
+        console.log('sourceUrl = ', this.$route.query.gitPermaLink);
+        if(this.$route.query.gitPermaLink){
+            this.downloadZipFileAndOpenInPlayer(this.$route.query.gitPermaLink);
         }
         console.log('Main created');
     }
@@ -976,7 +1000,7 @@ function initVue() {
         },
         mounted() {
             // this.addNewRecording();
-            this.addNewPlayer();
+            // this.addNewPlayer();
             // this.addNewSwarEdit();
         }
     })
