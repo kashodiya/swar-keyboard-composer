@@ -343,8 +343,9 @@
                                 </Player>
                             </div>
                             <div v-if="tab.type == 'Editors'">
-                                <Swaredit :ref="tab.type + '-' + tabIndex" :context="tab.context" XXname="tab.context.name"
-                                    XXswar-txt="tab.context.swarTxt" :tab-index="tabIndex"></Swaredit>
+                                <Swaredit :ref="tab.type + '-' + tabIndex" :context="tab.context"
+                                    XXname="tab.context.name" XXswar-txt="tab.context.swarTxt" :tab-index="tabIndex">
+                                </Swaredit>
                             </div>
                         </template>
                     </v-card>
@@ -397,7 +398,8 @@
 
                                 <v-tooltip right>
                                     <template v-slot:activator="{ on, attrs }">
-                                        <v-icon small @click="showDeleteConfirmDialogBox(item)" v-bind="attrs" v-on="on">
+                                        <v-icon small @click="showDeleteConfirmDialogBox(item)" v-bind="attrs"
+                                            v-on="on">
                                             mdi-delete
                                         </v-icon>
                                     </template>
@@ -435,26 +437,37 @@
     <template id="recorder-template">
         <div>
             <p>
-                <v-btn :disabled="!(mediaRecorderCreated && recState == 'NOT-RECORDING')" @click="startRecording">Start
-                    Recording</v-btn>
-                <v-btn :disabled="recState != 'RECORDING'" @click="stopRecording">Stop Recording</v-btn>
-                <v-btn :disabled="recState != 'STOPPED'" @click="clearAll">Clear all</v-btn>
+                <v-form ref="form" @submit.prevent="download">
+                    <v-text-field class="file-name-input" :rules="[rules.required]" v-model="projectName"
+                        @blur="projectNameBlur" label="Project name"></v-text-field>
+                </v-form>
+            </p>
+            <p>
+                <v-btn :disabled="!(mediaRecorderCreated && recState == 'NOT-RECORDING')" @click="startRecording">
+                    Start Recording
+                    <v-icon right>mdi-record-rec</v-icon>
+                </v-btn>
+                <v-btn :disabled="recState != 'RECORDING'" @click="stopRecording">Stop Recording
+                    <v-icon right>mdi-stop-circle</v-icon>
+                </v-btn>
+                <v-btn :disabled="recState != 'STOPPED'" @click="clearAll">Clear all
+                    <v-icon right>mdi-delete-circle</v-icon>
+                </v-btn>
             </p>
             <p XXv-show="audioDataReady">
                 <audio id="recordingAudio" ref="recordingAudio" controls class="audio-control"></audio>
             </p>
 
             <p>
-                <v-btn :disabled="!audioDataReady" @click="download">Download</v-btn>
-                <v-btn :disabled="!audioDataReady" @click="openInPlayer">Open in Player</v-btn>
-                <v-btn :disabled="!audioDataReady" @click="openInSwarEditor">Open in Swar Editor</v-btn>
-            </p>
-
-            <p>
-                <v-form ref="form" @submit.prevent="download">
-                    <v-text-field class="file-name-input" :rules="[rules.required]" v-model="projectName"
-                        label="Project name"></v-text-field>
-                </v-form>
+                <v-btn :disabled="!audioDataReady" @click="download">Download
+                    <v-icon right>mdi-folder-download</v-icon>
+                </v-btn>
+                <v-btn :disabled="!audioDataReady" @click="openInPlayer">Open in Player
+                    <v-icon right>mdi-play-circle</v-icon>
+                </v-btn>
+                <v-btn :disabled="!audioDataReady" @click="openInSwarEditor">Open in Swar Editor
+                    <v-icon right>mdi-pencil-circle</v-icon>
+                </v-btn>
             </p>
 
             <ul class="swar-list">
@@ -468,6 +481,12 @@
     <template id="player-template">
         <div>
             <v-file-input v-model="chosenFile" label="Upload zip file"></v-file-input>
+
+            <!-- <v-form ref="form" @submit.prevent="">
+                <v-text-field hide-details XX:rules="[rules.required]" XXblur="projectNameBlur"
+                    XXv-model="googleDriveLink" label="Google Drive Link"></v-text-field>
+            </v-form> -->
+
             <audio ref="playerAudio" controls></audio>
 
             <p v-if="swarTimeData != null">
@@ -479,7 +498,7 @@
             </ul>
             <v-btn @click="openFormatSwars" x-small v-if="swarTimeData != null">Format swars</v-btn>
 
-            <v-btn @click="clearSwarHighlights" x-small>clearSwarHighlights</v-btn>
+            <!-- <v-btn @click="clearSwarHighlights" x-small>clearSwarHighlights</v-btn> -->
 
             </p>
 
@@ -497,10 +516,73 @@
 
     <template id="swaredit-template">
         <div>
-            <v-switch v-model="showGuide" label="Show guide"></v-switch>
 
-            <div v-show="showGuide">
-                <h3>Swar formatting</h3>
+            <p>
+                <v-form ref="form" @submit.prevent="">
+                    <v-text-field hide-details class="file-name-input" :rules="[rules.required]" @blur="projectNameBlur"
+                        v-model="projectName" label="Project name"></v-text-field>
+                </v-form>
+            </p>
+
+            <v-toolbar elevation="1">
+                <v-switch hide-details v-model="showGuide" label="Show guide"></v-switch>
+                <v-switch hide-details v-model="allowLyricsLines" label="Include lyrics" class="ml-5"></v-switch>
+                <v-spacer></v-spacer>
+
+
+                <v-tooltip bottom>
+                    <template v-slot:activator="{ on, attrs }">
+                        <v-btn v-bind="attrs" v-on="on" icon @click="adjustBitGap(swarLineBitsGapIncrement)">
+                            <v-icon>mdi-unfold-more-vertical</v-icon>
+                        </v-btn>
+                    </template>
+                    <span>Increase swar gap</span>
+                </v-tooltip>
+
+                <v-tooltip bottom>
+                    <template v-slot:activator="{ on, attrs }">
+                        <v-btn v-bind="attrs" v-on="on" icon @click="adjustBitGap(swarLineBitsGapIncrement * -1)">
+                            <v-icon>mdi-unfold-less-vertical</v-icon>
+                        </v-btn>
+                    </template>
+                    <span>Decrease swar gap</span>
+                </v-tooltip>
+
+                <v-tooltip bottom>
+                    <template v-slot:activator="{ on, attrs }">
+                        <v-btn v-bind="attrs" v-on="on" icon @click="saveRecord(false)">
+                            <v-icon>mdi-content-save</v-icon>
+                        </v-btn>
+                    </template>
+                    <span>Save</span>
+                </v-tooltip>
+
+                <v-tooltip bottom>
+                    <template v-slot:activator="{ on, attrs }">
+                        <v-btn v-bind="attrs" v-on="on" icon @click="saveRecord(true)">
+                            <v-icon>mdi-folder-download</v-icon>
+                        </v-btn>
+                    </template>
+                    <span>Download</span>
+                </v-tooltip>
+
+                <!-- <v-btn icon XXfab XXdark XXsmall @click="adjustBitGap(swarLineBitsGapIncrement * -1)">
+                    <v-icon>mdi-unfold-more-vertical</v-icon>
+                </v-btn>
+ -->
+                <!-- <v-btn icon XXfab XXdark XXsmall @click="saveRecord(true)">
+                    <v-icon>mdi-folder-download</v-icon>
+                </v-btn> -->
+
+
+            </v-toolbar>
+
+            <v-textarea class="mt-5 swar-text-area" hide-details outlined label="Swar lines" v-model="formattedSwars">
+            </v-textarea>
+
+
+            <div class="mt-5" v-show="showGuide">
+                <h3>Guide</h3>
                 <p>
                 <ul>
                     <li>
@@ -532,44 +614,36 @@
 
             </div>
 
-            <v-textarea class="mb-3 swar-text-area" hide-details outlined label="Swar lines" v-model="formattedSwars">
-            </v-textarea>
 
-            <p>
-            <table class="swar-line-preview mb-3" ref="swar-line-preview-table">
-                <tr v-for="(line, lineIndex) in swarLines">
-                    <td v-for="(vibhag, vibhagIndex) in line">
-                        <ul class="swar-line-vibhag">
-                            <li v-for="(bitInfo, bitIndex) in vibhag"
-                                :ref="'bit-' + lineIndex + '-' + vibhagIndex + '-' + bitIndex">
-                                <code :class="bitInfo.isOmenad ? omeClassName : 'swar-line-bit-symbol'"
-                                    v-html="bitInfo.symbol">
+            <div class="mt-5" v-show="swarLines.length > 0">
+                <h4>Preview</h4>
+                <table class="swar-line-preview mt-3" ref="swar-line-preview-table">
+                    <tr v-for="(line, lineIndex) in swarLines">
+                        <td v-for="(vibhag, vibhagIndex) in line">
+                            <ul class="swar-line-vibhag">
+                                <li v-for="(bitInfo, bitIndex) in vibhag"
+                                    :ref="'bit-' + lineIndex + '-' + vibhagIndex + '-' + bitIndex">
+                                    <code :class="bitInfo.isOmenad ? omeClassName : 'swar-line-bit-symbol'"
+                                        v-html="bitInfo.symbol">
                                 </code>
-                            </li>
-                        </ul>
-                    </td>
-                </tr>
-            </table>
-            <v-btn x-small @click="adjustBitGap(swarLineBitsGapIncrement)">Increase Gap</v-btn>
-            <v-btn x-small @click="adjustBitGap(swarLineBitsGapIncrement * -1)">Decrease Gap</v-btn>
+                                </li>
+                            </ul>
+                        </td>
+                    </tr>
+                </table>
 
-            </p>
+                <!-- <v-divider class="mt-5 mb-5"></v-divider> -->
 
-            <v-btn @click="saveRecord(true)" x-small>Download zip</v-btn>
+                <v-radio-group row v-model="omeClassName">
+                    Use fonts/language:
+                    <v-radio class="ome-class-name-radio" v-for="oc in omeClassNames" :key="oc.className"
+                        :label="oc.title" :value="oc.className"></v-radio>
+                </v-radio-group>
 
-            <v-switch v-model="allowLyricsLines" label="Allow lyrics lines before swar lines"></v-switch>
+            </div>
 
-            <v-divider class="mt-5 mb-5"></v-divider>
 
-            <h4>Preview</h4>
-
-            Use fonts/language:
-            <v-radio-group row v-model="omeClassName">
-                <v-radio class="ome-class-name-radio" v-for="oc in omeClassNames" :key="oc.className" :label="oc.title"
-                    :value="oc.className"></v-radio>
-            </v-radio-group>
-
-            <v-divider class="mt-5 mb-5"></v-divider>
+            <!-- <v-divider class="mt-5 mb-5"></v-divider> -->
         </div>
     </template>
 

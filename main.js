@@ -1,10 +1,10 @@
 let dbHelper;
-var keys = "C#3 D3 D#3 E3 F3 F#3 G3 G#3 A3 A#3 B3 C4 C#4 D4 D#4 E4 F4 F#4 G4 G#4 A4 A#4 B4 C5 C#5 D5 D#5 E5 F5 F#5 G5 G#5 A5 A#5 B5 C6".split(" ");
-var swars = "sl Rl rl Gl gl ml Ml pl Dl dl Nl nl s R r G g m M p D d N n su Ru ru Gu gu mu Mu pu Du du Nu nu".split(" ");
-var swarsEng = ".S .r .R .g .G .M .m .P .d .D .n .N S r R g G M m P d D n N S. r. R. g. G. M. m. P. d. D. n. N.".split(" ");
-let colors = ['#e6194B', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4', '#42d4f4', '#f032e6', '#bfef45', '#fabed4', '#469990', '#dcbeff', '#9A6324', '#fffac8', '#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#a9a9a9', '#ffffff', '#000000'];
-let oneOctive = ['black cs', 'white d', 'black ds', 'white e', 'white f', 'black fs', 'white g', 'black gs', 'white a', 'black as', 'white b', 'white c'];
-let pianoKeys = [...oneOctive, ...oneOctive, ...oneOctive];
+const keys = "C#3 D3 D#3 E3 F3 F#3 G3 G#3 A3 A#3 B3 C4 C#4 D4 D#4 E4 F4 F#4 G4 G#4 A4 A#4 B4 C5 C#5 D5 D#5 E5 F5 F#5 G5 G#5 A5 A#5 B5 C6".split(" ");
+const swars = "sl Rl rl Gl gl ml Ml pl Dl dl Nl nl s R r G g m M p D d N n su Ru ru Gu gu mu Mu pu Du du Nu nu".split(" ");
+const swarsEng = ".S .r .R .g .G .M .m .P .d .D .n .N S r R g G M m P d D n N S. r. R. g. G. M. m. P. d. D. n. N.".split(" ");
+// const colors = ['#e6194B', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4', '#42d4f4', '#f032e6', '#bfef45', '#fabed4', '#469990', '#dcbeff', '#9A6324', '#fffac8', '#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#a9a9a9', '#ffffff', '#000000'];
+const oneOctive = ['black cs', 'white d', 'black ds', 'white e', 'white f', 'black fs', 'white g', 'black gs', 'white a', 'black as', 'white b', 'white c'];
+const pianoKeys = [...oneOctive, ...oneOctive, ...oneOctive];
 
 const SwarEdit = Vue.component('Swaredit', {
     template: '#swaredit-template',
@@ -14,11 +14,17 @@ const SwarEdit = Vue.component('Swaredit', {
         return {
             showGuide: false,
             showFormatSwars: false,
-            allowLyricsLines: true,
+            projectNameOld: '',
+            dbRecord: null,
+            projectName: '',
+            rules: {
+                required: value => !!value || 'Please enter download file name.'
+            },
+            allowLyricsLines: false,
             formattedSwars: '',
             omeClassName: 'ome-bhatkhande-english',
             swarLineBitsGapIncrement: 2,
-            swarLines: [],
+            swarLines: [],      //This is a used for drawing preview table
             omeClassNames: [
                 { className: 'ome-bhatkhande-english', title: 'English' },
                 { className: 'ome-bhatkhande-hindi', title: 'Hindi' },
@@ -35,14 +41,23 @@ const SwarEdit = Vue.component('Swaredit', {
         },
         formattedSwars(newTxt) {
             this.transformFromattedSwars();
-        }
+        },
+        // projectName(newName, oldName) {
+        //     console.log({newName, oldName});
+        // }
     },
     methods: {
+        projectNameBlur(){
+            if(this.projectName.length > 0 && this.projectName != this.projectNameOld){
+                console.log(`Change db record key from ${this.projectName} to ${this.projectNameOld}`);
+                this.saveRecord();
+            }
+        },
         transformFromattedSwars() {
             if (this.formattedSwars == null || this.formattedSwars.length == 0) return;
 
             let lines = this.formattedSwars.split('\n');
-            console.log({ lines });
+            // console.log({ lines });
             lines = lines.filter(l => l.trim().length != '')
 
             this.swarLines = [];
@@ -69,7 +84,8 @@ const SwarEdit = Vue.component('Swaredit', {
                 });
                 this.swarLines.push(vibhagList);
             });
-            console.log({ swarLines: this.swarLines });
+            let maxCol = Math.max(...this.swarLines.map(l => l.length));
+            // console.log({ maxCol, swarLines: this.swarLines });
         },
         adjustBitGap(amount) {
             let maxWidth = 0;
@@ -136,17 +152,24 @@ const SwarEdit = Vue.component('Swaredit', {
         },
         saveRecord(download) {
             let zip = new JSZip();
-            zip.file(this.name + '-formatted-swars.txt', this.formattedSwars);
-            zip.file(this.name + '-preview.html', 'TODO: THIS FILE SHOULD INCLUDE HTML OF THE TABLE');
+            zip.file(this.projectName + '-formatted-swars.txt', this.formattedSwars);
+            zip.file(this.projectName + '-preview.html', 'TODO: THIS FILE SHOULD INCLUDE HTML OF THE TABLE');
 
             zip.generateAsync({ type: "blob" }).then(async (zipBlob) => {
-                let fileName = this.name + '.zip';
+                let fileName = this.projectName + '.zip';
                 if (download) {
                     saveAs(zipBlob, fileName);
                 }
                 //Save to db
-                let record = { name: this.name, fileName, type: 'Editors', zipBlob };
-                await dbHelper.saveRecord(record);
+                let record = { name: this.projectName, fileName, type: 'Editors', zipBlob };
+                if(this.projectNameOld == this.projectName){
+                    await dbHelper.saveRecord(record);
+                }else{
+                    await dbHelper.saveRecord(record, this.projectNameOld);
+                    this.projectNameOld = this.projectName;
+                    this.$router.app.$emit('onRenameTab', { tabIndex: this.tabIndex, name: this.projectName });
+                }
+                this.dbRecord = record;
             });
         },
     },
@@ -156,7 +179,7 @@ const SwarEdit = Vue.component('Swaredit', {
 
         if (this.context) {
             console.log('SwarEdit created with context = ', this.context);
-            this.name = this.context.name;
+            this.projectName = this.context.name;
             if (this.context.type == 'Recordings') {
                 //When SwarEditor is called from Recordings, we need to get swarTxt from <name>-swarTimeData.json file from zipBlob 
                 let files = await unzip(this.context.zipBlob);
@@ -169,7 +192,6 @@ const SwarEdit = Vue.component('Swaredit', {
                 // }else{
                 //     console.error('Rcording context passed to SwarExit does not have *-swarTimeData.json in the zipBlob');
                 // }
-
                 
                 let swarFileInfo = files.find(f => f.fileName.indexOf('-omenad-swars.txt') > -1);
                 if(swarFileInfo){
@@ -177,8 +199,6 @@ const SwarEdit = Vue.component('Swaredit', {
                 }else{
                     console.error('Rcording context passed to SwarExit does not have *-omenad-swars.txt in the zipBlob');
                 }
-
-
             } else if (this.context.type == 'Players') {
                 //swarTxt is in the context
                 this.swarTxt = this.context.swarTxt;
@@ -191,21 +211,29 @@ const SwarEdit = Vue.component('Swaredit', {
         // this.formattedSwars = this.swarTxt;
         // console.log({ swarTxt: this.swarTxt });
 
-        //TODO: Remove following
-        if (this.formattedSwars == '') {
+        //TODO: Remove following block
+        if (!this.formattedSwars || this.formattedSwars == '') {
+            this.allowLyricsLines = true;
             this.formattedSwars =
                 ["- - - - | - - - - | sa da gu ru",
                     "s r g m | r g m p | g m p d",
                     "se = = = | kya = maan gu | ji na ke =",
                     "r g m p | s r g m | g m p d"].join('\n');
+
+            // this.allowLyricsLines = true;
+            // this.formattedSwars ='a a | b b | c c | d d | e e\n1 1 | 2 2 | 2 2 | 4 4 | 5 5';
+
         }
 
         //If name as passed (from recorder/player), set title and save
-        if (this.name && this.name.length > 0) {
-            this.$router.app.$emit('onRenameTab', { tabIndex: this.tabIndex, name: this.name });
+        if (this.projectName && this.projectName.length > 0) {
+            this.$router.app.$emit('onRenameTab', { tabIndex: this.tabIndex, name: this.projectName });
             // this.createZip(false);
-            this.saveRecord();
+            // await this.saveRecord();
         }
+
+        this.projectNameOld = this.projectName;
+
         console.log('SwarEdit created');
     }
 })
@@ -415,7 +443,7 @@ const Player = Vue.component('Player', {
         audio.addEventListener('ended', this.audioEnded);
         audio.addEventListener('seeking', this.audioSeeking);
         if (this.context != null) {
-            console.log('Player created with context = ');
+            console.log('Player created with context =');
             console.log(this.context);
             this.name = this.context.fileName;
             this.loadZipFile(this.context.zipBlob, this.context.fileName);
@@ -426,6 +454,7 @@ const Player = Vue.component('Player', {
     }
 })
 
+// https://drive.google.com/file/d/1Ek5u5mQ0Kz5JklUX_uziUSV2jnJ7JnD0/view?usp=sharing
 
 
 const Recorder = Vue.component('Recorder', {
@@ -444,13 +473,22 @@ const Recorder = Vue.component('Recorder', {
             mediaRecorderCreated: false,
             recStartDateTime: null,
             swarTimeData: [],
-            oldProjectName: '',
+            projectNameOld: '',
             projectName: '',
             pianoKeyDownInfo: null,
             keys, swars, swarsEng            //These come from global vars
         }
     },
     methods: {
+        projectNameBlur(){
+            if(this.projectName.length > 0 && this.projectName != this.projectNameOld){
+                console.log(`Change db record key from ${this.projectName} to ${this.projectNameOld}`);
+                if(this.dbRecord){
+                    //If record was saved, rename the key
+                    this.saveRecord();
+                }
+            }
+        },
         async openInPlayer() {
             let name = this.getFileName();
             if (!name) return;
@@ -514,7 +552,7 @@ const Recorder = Vue.component('Recorder', {
             let fileName = name + '.zip';
             saveAs(content, fileName);
             // await this.saveRecord();
-            this.oldProjectName = name;
+            this.projectNameOld = name;
         },
         async getZipBlob() {
             let swarList = this.swarTimeData.map(d => d.swar);
@@ -543,7 +581,7 @@ const Recorder = Vue.component('Recorder', {
             this.recState = 'NOT-RECORDING';
             this.recStartDateTime = null;
             this.projectName = this.generateProjectName();
-            // this.oldProjectName = '';
+            // this.projectNameOld = '';
             this.projectName = this.generateProjectName();
         },
         swarTimeDataItemClicked(d) {
@@ -565,16 +603,16 @@ const Recorder = Vue.component('Recorder', {
             let fileName = name + '.zip';
             // let arrayBuffer = await blob.arrayBuffer();
             let record = { type: 'Recordings', name, fileName, zipBlob };
-            if (this.oldProjectName.length > 0 && name != this.oldProjectName) {
+            if (this.projectNameOld.length > 0 && name != this.projectNameOld) {
                 //Update record
-                let oldKey = this.oldProjectName;
+                let oldKey = this.projectNameOld;
                 await dbHelper.saveRecord(record, oldKey);
             } else {
                 //Insert record
                 await dbHelper.saveRecord(record);
             }
             this.$router.app.$emit('onShowMessage', `Recording data is saved under file name: ${fileName}`);
-            this.oldProjectName = name;
+            this.projectNameOld = name;
 
             this.$router.app.$emit('onRenameTab', { tabIndex: this.tabIndex, name });
             this.dbRecord = record;
@@ -690,6 +728,7 @@ const Recorder = Vue.component('Recorder', {
             console.log('Error getting: navigator.mediaDevices.getUserMedia');
         });
         this.projectName = this.generateProjectName();
+        this.projectNameOld = this.projectName;
 
         WebMidi.enable().then(this.onMidiEnabled).catch(err => {
             //TODO: Show this error
@@ -814,11 +853,9 @@ const Main = Vue.component('Main', {
         },
         openTabForRecord(record) {
             console.log('Opening tab for...', { record });
-            //TODO: Send context to this.add...() calls
             if (record.type == 'Editors') {
-                this.addNewSwarEdit();
+                this.addNewSwarEdit(record);
             } else if (record.type == 'Recordings') {
-                // Recordings are opened using Player
                 this.addNewPlayer(record);
             } else if (record.type == 'Players') {
                 this.addNewPlayer(record);
@@ -828,6 +865,22 @@ const Main = Vue.component('Main', {
         openShowMessage(msg) {
             this.message = msg;
             this.showMesssage = true;
+        },
+        async downloadZipFileAndOpenInPlayer(url){
+
+            // Following will give you a JSON of all the files in Git repo
+            // url = "https://api.github.com/repos/kashodiya/raag-files/git/trees/main?recursive=1";
+            // let data = await fetch(url).then(r => r.json());
+            // console.log(data.tree[7].url);
+
+            url = 'https://api.github.com/repos/kashodiya/raag-files/git/blobs/58fcae2ad848fedaea2d1e694b7bb45ab72fd6d4';
+            // console.log({url});
+            let data = await fetch(url).then(r => r.json());
+            let zip = await JSZip.loadAsync(data.content, {base64: true});
+            console.log(zip.files);
+
+            //xxx
+
         }
     },
     mounted() {
@@ -841,6 +894,11 @@ const Main = Vue.component('Main', {
         this.$router.app.$on('onListFiles', this.listFiles);
         this.$router.app.$on('onRenameTab', this.renameTab);
         this.$router.app.$on('onShowMessage', this.openShowMessage);
+
+        console.log('sourceUrl = ', this.$route.query.sourceUrl);
+        if(this.$route.query.sourceUrl){
+            this.downloadZipFileAndOpenInPlayer(this.$route.query.sourceUrl);
+        }
         console.log('Main created');
     }
 })
@@ -918,7 +976,7 @@ function initVue() {
         },
         mounted() {
             // this.addNewRecording();
-            // this.addNewPlayer();
+            this.addNewPlayer();
             // this.addNewSwarEdit();
         }
     })
