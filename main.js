@@ -47,8 +47,8 @@ const SwarEdit = Vue.component('Swaredit', {
         // }
     },
     methods: {
-        projectNameBlur(){
-            if(this.projectName.length > 0 && this.projectName != this.projectNameOld){
+        projectNameBlur() {
+            if (this.projectName.length > 0 && this.projectName != this.projectNameOld) {
                 console.log(`Change db record key from ${this.projectName} to ${this.projectNameOld}`);
                 this.saveRecord();
             }
@@ -162,9 +162,9 @@ const SwarEdit = Vue.component('Swaredit', {
                 }
                 //Save to db
                 let record = { name: this.projectName, fileName, type: 'Editors', zipBlob };
-                if(this.projectNameOld == this.projectName){
+                if (this.projectNameOld == this.projectName) {
                     await dbHelper.saveRecord(record);
-                }else{
+                } else {
                     await dbHelper.saveRecord(record, this.projectNameOld);
                     this.projectNameOld = this.projectName;
                     this.$router.app.$emit('onRenameTab', { tabIndex: this.tabIndex, name: this.projectName });
@@ -183,7 +183,7 @@ const SwarEdit = Vue.component('Swaredit', {
             if (this.context.type == 'Recordings') {
                 //When SwarEditor is called from Recordings, we need to get swarTxt from <name>-swarTimeData.json file from zipBlob 
                 let files = await unzip(this.context.zipBlob);
-                console.log({files});
+                console.log({ files });
 
                 // let swarTimeDataFileInfo = files.find(f => f.fileName.indexOf('-swarTimeData.json') > -1);
                 // if(swarTimeDataFileInfo){
@@ -192,11 +192,11 @@ const SwarEdit = Vue.component('Swaredit', {
                 // }else{
                 //     console.error('Rcording context passed to SwarExit does not have *-swarTimeData.json in the zipBlob');
                 // }
-                
+
                 let swarFileInfo = files.find(f => f.fileName.indexOf('-omenad-swars.txt') > -1);
-                if(swarFileInfo){
+                if (swarFileInfo) {
                     this.swarTxt = swarFileInfo.content;
-                }else{
+                } else {
                     console.error('Rcording context passed to SwarExit does not have *-omenad-swars.txt in the zipBlob');
                 }
             } else if (this.context.type == 'Players') {
@@ -319,12 +319,12 @@ const Player = Vue.component('Player', {
         },
         async loadZipFile(zipBlob, origFileName) {
             let files = await unzip(zipBlob);
-            console.log({files});
+            console.log({ files });
             files.forEach(fileInfo => {
-                if(fileInfo.ext == 'ogg'){
+                if (fileInfo.ext == 'ogg') {
                     //audio/ogg; codecs=opus
                     this.$refs.playerAudio.src = window.URL.createObjectURL(fileInfo.content);
-                }else if(fileInfo.ext == 'json'){
+                } else if (fileInfo.ext == 'json') {
                     this.swarTimeData = fileInfo.content;
                     console.table(this.swarTimeData.map(d => { return { st: d.startTime, et: d.endTime, swar: d.swar } }));
                     this.preparePiano();
@@ -480,10 +480,10 @@ const Recorder = Vue.component('Recorder', {
         }
     },
     methods: {
-        projectNameBlur(){
-            if(this.projectName.length > 0 && this.projectName != this.projectNameOld){
+        projectNameBlur() {
+            if (this.projectName.length > 0 && this.projectName != this.projectNameOld) {
                 console.log(`Change db record key from ${this.projectName} to ${this.projectNameOld}`);
-                if(this.dbRecord){
+                if (this.dbRecord) {
                     //If record was saved, rename the key
                     this.saveRecord();
                 }
@@ -780,7 +780,7 @@ const Main = Vue.component('Main', {
         },
         async fileTableRowClicked(row) {
             console.log({ row });
-            if(row.zipBlob){
+            if (row.zipBlob) {
                 await unzip(row.zipBlob);
             }
         },
@@ -866,19 +866,86 @@ const Main = Vue.component('Main', {
             this.message = msg;
             this.showMesssage = true;
         },
-        async getGitHubBlobUrlForPath(owner, repo, path){
+        async getGitHubBlobUrlForPath(owner, repo, path) {
             // Following will give you a JSON of all the files in Git repo
             let url = `https://api.github.com/repos/${owner}/${repo}/git/trees/main?recursive=1`;
             let data = await fetch(url).then(r => r.json());
-            console.log({url, data});
+            console.log({ url, data });
             let blobUrl;
             let treeItem = data.tree.find(t => t.path == path);
-            if(treeItem){
+            if (treeItem) {
                 blobUrl = treeItem.url;
             }
             return blobUrl;
         },
-        async downloadZipFileAndOpenInPlayer(gitPermaLink){
+        async downloadGoogleDriveZipFile(link) {
+            // googleDriveLink is like this...
+            //https://drive.google.com/file/d/1NzoKWzASbL696Cw-XRicD-X1SSc5jnc5/view?usp=sharing
+            // You should extract ID and generate this link for download/fetch
+            //https://drive.google.com/uc?export=download&id=1NzoKWzASbL696Cw-XRicD-X1SSc5jnc5
+
+
+//https://www.googleapis.com/drive/v3/files/1NzoKWzASbL696Cw-XRicD-X1SSc5jnc5
+
+            let id = link.split('/')[5];
+            let dlLink = "https://drive.google.com/uc?export=download&id=" + id;
+            console.log({ dlLink });
+
+            let options = {
+                // mode: 'no-cors',
+                // headers: {
+                    'Access-Control-Allow-Origin': '*'
+                // }
+            }
+
+            let zipBlob = await fetch(dlLink, options).then(r => r.blob());
+            console.log(zipBlob);
+            let zip = await JSZip.loadAsync(zipBlob);
+            console.log(zip.files);
+            let fileName = "TODO.zip";
+            return {zip, fileName};
+        },
+        async downloadGithubZipFile(link) {
+            //gitPermaLink is like https://github.com/kashodiya/raag-files/blob/3fdd550943223160244ce8fb4dbf17a00899b495/raags/maru-bihag/raam-aakar-bane-man-mera/raam-aakar-bane-man-mera-asthayee-1.zip
+            //Get owner, repo and path from it
+            let parts = link.split("/")
+            let owner = parts[3];
+            let repo = parts[4];
+            let gitFilePath = parts.slice(7).join("/");
+            //A path looks like this: "raags/maru-bihag/raam-aakar-bane-man-mera/raam-aakar-bane-man-mera-antra-1.zip"
+            url = await this.getGitHubBlobUrlForPath(owner, repo, gitFilePath);
+            console.log({ url, owner, repo, gitFilePath });
+            let data = await fetch(url).then(r => r.json());
+            console.log(data);
+            let zip = await JSZip.loadAsync(data.content, { base64: true });
+            console.log(zip.files);
+            let fileName = parts[parts.length - 1];
+            return {zip, fileName};
+        },
+        async downloadZipFileAndOpenInPlayer(link, source) {
+            let zipObj, zip, fileName;
+            if (source == 'github') {
+                zipObj = await this.downloadGithubZipFile(link);
+            } else if (source == 'drive.google') {
+                zipObj = await this.downloadGoogleDriveZipFile(link);
+            }
+            zip = zipObj.zip
+            fileName = zipObj.fileName;
+
+            let zipBlob = await zip.generateAsync({ type: "blob" });
+            // let fileName = parts[parts.length - 1];
+            let name = fileName.replace(/\.[^/.]+$/, "");
+            let record = { type: 'Recordings', name, fileName, zipBlob };
+
+            console.log({ record });
+            dbHelper.saveRecord(record);
+            this.$router.app.$emit('onAddNewPlayer', record);
+        },
+        async XXXdownloadZipFileAndOpenInPlayer(gitPermaLink) {
+
+            //Check if the URL contains "google" or "github"
+            //Accordingly call downloadGithubZipFileAndOpenInPlayer or downloadGoogleDriveZipFileAndOpenInPlayer
+
             //gitPermaLink is like https://github.com/kashodiya/raag-files/blob/3fdd550943223160244ce8fb4dbf17a00899b495/raags/maru-bihag/raam-aakar-bane-man-mera/raam-aakar-bane-man-mera-asthayee-1.zip
             //Get owner, repo and path from it
             let parts = gitPermaLink.split("/")
@@ -887,10 +954,10 @@ const Main = Vue.component('Main', {
             let gitFilePath = parts.slice(7).join("/");
             //A path looks like this: "raags/maru-bihag/raam-aakar-bane-man-mera/raam-aakar-bane-man-mera-antra-1.zip"
             url = await this.getGitHubBlobUrlForPath(owner, repo, gitFilePath);
-            console.log({url, owner, repo, gitFilePath});
+            console.log({ url, owner, repo, gitFilePath });
             let data = await fetch(url).then(r => r.json());
             console.log(data);
-            let zip = await JSZip.loadAsync(data.content, {base64: true});
+            let zip = await JSZip.loadAsync(data.content, { base64: true });
             console.log(zip.files);
 
             let zipBlob = await zip.generateAsync({ type: "blob" });
@@ -898,7 +965,7 @@ const Main = Vue.component('Main', {
             let name = fileName.replace(/\.[^/.]+$/, "");
             let record = { type: 'Recordings', name, fileName, zipBlob };
 
-            console.log({record});
+            console.log({ record });
             dbHelper.saveRecord(record);
             this.$router.app.$emit('onAddNewPlayer', record);
             //xxx
@@ -919,10 +986,23 @@ const Main = Vue.component('Main', {
         this.$router.app.$on('onShowMessage', this.openShowMessage);
 
         //gitPermaLink=https://github.com/kashodiya/raag-files/blob/3fdd550943223160244ce8fb4dbf17a00899b495/raags/maru-bihag/raam-aakar-bane-man-mera/raam-aakar-bane-man-mera-asthayee-1.zip
-        console.log('sourceUrl = ', this.$route.query.gitPermaLink);
-        if(this.$route.query.gitPermaLink){
-            this.downloadZipFileAndOpenInPlayer(this.$route.query.gitPermaLink);
+        let sourceLink = this.$route.query.sourceLink;
+        console.log('sourceLink = ', sourceLink);
+        if (sourceLink) {
+            // Test urls
+            // ?sourceLink=https://drive.google.com/file/d/1NzoKWzASbL696Cw-XRicD-X1SSc5jnc5/view?usp=sharing
+            // ?sourceLink=https://github.com/kashodiya/raag-files/blob/3fdd550943223160244ce8fb4dbf17a00899b495/raags/maru-bihag/raam-aakar-bane-man-mera/raam-aakar-bane-man-mera-asthayee-1.zip
+
+
+            let source = '';
+            if (sourceLink.indexOf('github') > -1) {
+                source = 'github';
+            } else if (sourceLink.indexOf('drive.google') > -1) {
+                source = 'drive.google';
+            }
+            this.downloadZipFileAndOpenInPlayer(sourceLink, source);
         }
+
         console.log('Main created');
     }
 })
@@ -1078,21 +1158,21 @@ async function unzip(zipBlob) {
     for (var fileName of Object.keys(zip.files)) {
         console.log(fileName);
         var ext = re.exec(fileName)[1];
-        if(ext == 'ogg'){
+        if (ext == 'ogg') {
             let audioData = await zip.file(fileName).async("ArrayBuffer")
             // const blob = new Blob([audioData], { type: "audio/wav" });
             const blob = new Blob([audioData], { type: "audio/ogg" });
             // const blob = new Blob([audioData]);
             // audio/ogg; codecs=opus
             console.log('Successfully got audio from zip file.');
-            files.push({fileName, ext, content: blob});
-        }else if(ext == 'json'){
+            files.push({ fileName, ext, content: blob });
+        } else if (ext == 'json') {
             let jsonTxt = await zip.file(fileName).async("text");
-            files.push({fileName, ext, content: JSON.parse(jsonTxt)});
+            files.push({ fileName, ext, content: JSON.parse(jsonTxt) });
             console.log('Successfully got JSON content.');
-        }else{  //This handles .txt and .html etc. files
+        } else {  //This handles .txt and .html etc. files
             let content = await zip.file(fileName).async("text");
-            files.push({fileName, ext, content});
+            files.push({ fileName, ext, content });
             console.log('Successfully got text content.');
         }
     }
