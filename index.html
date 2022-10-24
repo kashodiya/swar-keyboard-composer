@@ -35,6 +35,8 @@
     <!-- idb Docs: https://github.com/jakearchibald/idb -->
     <script src="https://cdn.jsdelivr.net/npm/idb@7/build/umd.js"></script>
 
+
+
     <style>
         /* .cur-swar {
             color: red;
@@ -270,10 +272,29 @@
                 <v-spacer></v-spacer>
 
 
-                <v-btn small @click="listFiles" class="mr-3">
+                <!-- <v-btn small @click="listFiles" class="mr-3">
                     Files
                     <v-icon right>mdi-format-list-bulleted</v-icon>
-                </v-btn>
+                </v-btn> -->
+
+                <v-menu offset-y>
+                    <template v-slot:activator="{ on, attrs }">
+                        <v-btn small v-bind="attrs" v-on="on" class="mr-3">
+                            Files
+                            <v-icon right>mdi-format-list-bulleted</v-icon>
+                        </v-btn>
+                    </template>
+                    <v-list>
+                        <v-list-item-group>
+                            <v-list-item v-for="(item, index) in ['Local Files', 'GitHub Files']" :key="index">
+                                <v-hover>
+                                    <v-list-item-title @click="listFilesFor(item)">{{ item }}</v-list-item-title>
+                                </v-hover>
+                            </v-list-item>
+                        </v-list-item-group>
+                    </v-list>
+                </v-menu>
+
 
                 <v-btn small @click="addNewSwarEdit" class="mr-3">
                     New Swar Editor
@@ -351,6 +372,43 @@
                     </v-card>
                 </v-tab-item>
             </v-tabs-items>
+
+            <!-- showGitHubFileDialog -->
+            <v-dialog v-model="showGitHubFileDialog" scrollable max-width="700px">
+                <v-card>
+                    <v-card-title>GitHub Files</v-card-title>
+                    <v-divider></v-divider>
+                    <v-card-text style="height: 500px;">
+                        <ul>
+                            <v-treeview open-all :dense="true" :items="gitHubFileTree">
+
+                                <template v-slot:label="{ item }">
+                                    <v-btn icon v-if="item.item.ext == 'zip'" @click="openGitHubFile(item.item)">
+                                        <v-icon small>mdi-folder-open</v-icon>
+                                    </v-btn>
+                                    {{item.name}}
+                                </template>
+
+
+                                <!-- <template v-slot:append="{ item, open }">
+                                    <v-icon v-if="true">
+                                        {{ open ? 'mdi-folder-open' : 'mdi-folder' }}
+                                    </v-icon>
+                                    <v-icon v-else>
+                                        {{ open ? 'mdi-folder-open' : 'mdi-folder' }}
+                                    </v-icon>
+                                </template> -->
+
+                            </v-treeview>
+
+                            <!-- <li v-for="treeNode in gitHubFileList">
+                                {{treeNode.path}} ({{treeNode.type}})
+                            </li> -->
+                        </ul>
+                    </v-card-text>
+                </v-card>
+            </v-dialog>
+
 
             <!-- Dialog to show files -->
             <v-dialog v-model="showFileDialog" scrollable max-width="700px">
@@ -490,19 +548,31 @@
             <audio ref="playerAudio" controls></audio>
 
             <p v-if="swarTimeData != null">
-            <ul class="swar-list">
-                <li @click="swarTimeDataItemClicked(d)" v-for="(d, index) in swarTimeData">
-                    <code class="ome-bhatkhande-english" :ref="'player-swar-' + index">{{d.swar}}</code>
+                <ul class="swar-list">
+                    <li @click="swarTimeDataItemClicked(d)" v-for="(d, index) in swarTimeData">
+                        <code class="ome-bhatkhande-english" :ref="'player-swar-' + index">{{d.swar}}</code>
 
-                </li>
-            </ul>
-            <v-btn @click="openFormatSwars" x-small v-if="swarTimeData != null">Format swars</v-btn>
+                    </li>
+                </ul>
+                <v-btn @click="openFormatSwars" x-small v-if="swarTimeData != null">Format swars</v-btn>
 
             <!-- <v-btn @click="clearSwarHighlights" x-small>clearSwarHighlights</v-btn> -->
 
             </p>
 
+            <canvas ref="keyboardCanvas"></canvas>
+            <video style="display: none;" ref="captureVideo" XXautoplay controls></video>
+
+            <p>
+                <v-btn class="mt-3" v-if="videoDownloadURL" XXicon :href="videoDownloadURL" :download="videoDownloadFileName">
+                    Download Video
+                    <v-icon right>mdi-download</v-icon>
+                </v-btn>
+            </p>
+
             <!-- Credits to piano css: https://codepen.io/zastrow/pen/kxdYdk -->
+            <!-- Following HTML is to draw piano using CSS. Since we are now using Canvas to draw piano we do not need it. -->
+            <!--  
             <div class="piano-keys" v-show="pianoKeysInUse.length > 0" ref="pianoKeys">
                 <ul class="set">
                     <li :class="k.liClass" :data-key-index="k.keyIndex" v-for="k in pianoKeysInUse"
@@ -511,6 +581,7 @@
                     </li>
                 </ul>
             </div>
+            -->
         </div>
     </template>
 
@@ -648,6 +719,7 @@
     </template>
 
     <script src="main.js"></script>
+    <script async defer src="https://apis.google.com/js/api.js" onload="gapiScriptLoaded()"></script>
 </body>
 
 </html>

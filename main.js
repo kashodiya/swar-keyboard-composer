@@ -5,6 +5,186 @@ const swarsEng = ".S .r .R .g .G .M .m .P .d .D .n .N S r R g G M m P d D n N S.
 // const colors = ['#e6194B', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4', '#42d4f4', '#f032e6', '#bfef45', '#fabed4', '#469990', '#dcbeff', '#9A6324', '#fffac8', '#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#a9a9a9', '#ffffff', '#000000'];
 const oneOctive = ['black cs', 'white d', 'black ds', 'white e', 'white f', 'black fs', 'white g', 'black gs', 'white a', 'black as', 'white b', 'white c'];
 const pianoKeys = [...oneOctive, ...oneOctive, ...oneOctive];
+let googleDriveFileTree = [];
+let isGapiScriptLoaded = false;
+let isGapiDriveClientLoaded = false;
+let isDbReady = false;
+
+
+function waitFor(testFunction, callback) {
+    if (testFunction()) {
+        callback();
+    } else {
+        console.log('Retrying waitFor in 1 sec ...');
+        setTimeout(() => { waitFor(testFunction, callback) }, 1000);
+    }
+}
+
+function gapiScriptLoaded() {
+    const API_KEY = 'AIzaSyCCVNDSZIKuyfd9Nyraek8PCgkn5SqLzqc';
+    //TODO: remove this folder ID
+    let folderId = '1BdCVW9Yc3HDM3c6Cc8IaE1KvCptVmX0E';     //tari-kripa-bhajan
+    isGapiScriptLoaded = true;
+    console.log("Loading GAPI client..");
+    gapi.load('client', async () => {
+        console.log("GAPI client loaded for API");
+        gapi.client.load('drive', 'v3', async () => {
+            console.log("GAPI client for Drive loaded.");
+            gapi.client.setApiKey(API_KEY);
+            isGapiDriveClientLoaded = true;
+            waitFor(() => { return isDbReady; }, () => { loadGoogleDriveFileTree(folderId); });
+        });
+    });
+}
+
+async function loadGoogleDriveFileTree(folderId) {
+    console.log('Loading Google Drive File Tree...');
+
+
+    let treeFromDb = await dbHelper.getGoogleDriveFileTree(folderId);
+    if (treeFromDb && false) {
+        googleDriveFileTree = [treeFromDb];
+        console.log('Using GoogleDriveFileTree from the database', { googleDriveFileTree });
+        return;
+    }
+
+    //First get the root folder info
+    // name: 'tari-kripa-bhajan', mimeType: 'application/vnd.google-apps.folder'    
+
+    let root = {};
+    try {
+        let resp = await gapi.client.drive.files.get({ fileId: folderId });
+        root = resp.result;
+        console.log({ rootFolderName: root.name });
+        root.level = 0;
+    } catch (error) {
+        console.log(`Error fetching root folder info for folderId = ${folderId}`);
+        console.error(error);
+        return;
+    }
+
+    let tree = await getGoogleDriveFilesTree(root);
+    console.log({ tree, root });
+    dbHelper.saveGoogleDriveFileTree(tree);
+
+    googleDriveFileTree = [tree];
+}
+
+function XXXloadGoogleDriveAPI() {
+    const API_KEY = 'AIzaSyCCVNDSZIKuyfd9Nyraek8PCgkn5SqLzqc';
+    // let folderId = '1jle3oACZ8SjKuFVEBHbNfCqpEGBMnLSc';     //Composition 
+    let folderId = '1BdCVW9Yc3HDM3c6Cc8IaE1KvCptVmX0E';     //tari-kripa-bhajan
+    // let folderId = "166aq-TDLw6XvKJn_91e_LU5NamgxAXEi" //  malkauns-8
+
+    let treeFromDb = dbHelper.getGoogleDriveFileTree(folderId);
+    if (treeFromDb) {
+        googleDriveFileTree = [treeFromDb];
+        console.log('Using GoogleDriveFileTree from the database', { googleDriveFileTree });
+        return;
+    }
+
+    console.log("Loading GAPI client..");
+    gapi.load('client', async () => {
+        console.log("GAPI client loaded for API");
+        gapi.client.load('drive', 'v3', async () => {
+            console.log("GAPI Drive loaded for API");
+            // driveAPILoaded = true;
+            gapi.client.setApiKey(API_KEY);
+
+
+            let root = {
+                id: folderId, level: 0
+            };
+
+            let tree = await getGoogleDriveFilesTree(root);
+            console.log({ tree });
+            dbHelper.saveGoogleDriveFileTree(tree);
+
+            googleDriveFileTree = [tree];
+
+            return googleDriveFileTree;
+
+
+            //List files
+            // gapi.client.drive.files.list({
+            //     q: `'${folderId}' in parents`,
+            // }).then(function (response) {
+            //     console.log("Response", response.result.files);
+            //     let files = response.result.files;
+            //     files.forEach(file => {
+            //         console.log(file.name);
+            //         if(file.mimeType == 'application/vnd.google-apps.folder'){
+            //             console.log("FFF = " + file.mimeType);
+            //         }
+            //     });
+
+            // }, function (err) {
+            //     console.error("Execute error", err);
+            // });
+
+
+            // //Download a file
+            // let fileId = "1MU8YSzo9xPiw4HfGja9Z2tXSpfR6IvZx"    // malkauns-8-ankho-pan-1.zip
+            // gapi.client.drive.files.get({ fileId, alt: 'media' }).then(async function (res) {
+            //     // console.log("File", res);
+            //     const dataUrl = `data:${res.headers["Content-Type"]};base64,${btoa(res.body)}`;
+            //     let zip = await JSZip.loadAsync(btoa(res.body), {base64: true});
+            //     console.log(zip.files);
+            // }, function (err) {
+            //     console.error("Execute error", err);
+            // });
+
+            // https://drive.google.com/uc?export=download&id=1MU8YSzo9xPiw4HfGja9Z2tXSpfR6IvZx
+
+
+
+
+
+
+        });
+    });
+}
+
+async function getGoogleDriveFilesTree(root) {
+    let response = await gapi.client.drive.files.list({
+        q: `'${root.id}' in parents`,
+    });
+    console.log(root.name, response.result.files);
+    let files = response.result.files;
+    var level = root.level + 1;
+    let children = [];
+    root.children = children;
+
+    console.log('await Promise.all START', level, files.length);
+    await Promise.allSettled(files.map(async (file) => {
+        file.level = level;
+        root.children.push(file);
+        if (file.mimeType == 'application/vnd.google-apps.folder') {
+            console.log('doing...');
+            file.children = await getGoogleDriveFilesTree(file).children;
+            console.log('done...');
+        }
+    }));
+    console.log('await Promise.all DONE', level, files.length, children.length);
+    
+
+
+    // for (const file of files) {
+    //     // console.log(file.name);
+    //     file.level = level;
+    //     children.push(file);
+    //     if (file.mimeType == 'application/vnd.google-apps.folder') {
+    //         file.children = await getGoogleDriveFilesTree(file).children;
+    //     }
+    // };
+
+
+    // if(root.level == 0){
+    // }
+
+    return root;
+}
+
 
 const SwarEdit = Vue.component('Swaredit', {
     template: '#swaredit-template',
@@ -255,6 +435,8 @@ const Player = Vue.component('Player', {
             pianoKeysInUse: [],
             minSwarIndex: -1,
             maxSwarIndex: -1,
+            videoDownloadURL: '',
+            videoDownloadFileName: '',
             pianoKeys, swars, keys       //These come from global vars
         }
     },
@@ -276,6 +458,9 @@ const Player = Vue.component('Player', {
                 this.$refs['piano-key-' + d.keyIndex][0].classList.remove('active-key');
             }, d.duration);
         },
+        drawKeyboard(minSwarIndex, maxSwarIndex){
+            this.keyboard = new Keyboard(minSwarIndex, maxSwarIndex, this.keyboardContext, 600);
+        },
         preparePiano() {
             //pianoKeys
             if (this.swarTimeData.length == 0) {
@@ -290,6 +475,11 @@ const Player = Vue.component('Player', {
             this.minSwarIndex = Math.min.apply(Math, indexes);
             this.maxSwarIndex = Math.max.apply(Math, indexes);
 
+            this.drawKeyboard(this.minSwarIndex, this.maxSwarIndex);
+
+            // Following code is to draw piano using CSS. 
+            // Since we are now using Canvas to draw piano we do not need it.
+            /*
             if (this.pianoKeys[this.minSwarIndex].indexOf('black') > -1) {
                 console.log('Showing one white key to the left of the piano');
                 this.minSwarIndex--;
@@ -316,6 +506,7 @@ const Player = Vue.component('Player', {
             let pianoWidth = (wKeyCount * 2.8) + (bKeyCount * 2);
             console.log({ wKeyCount, bKeyCount, pianoWidth });
             this.$refs.pianoKeys.style.width = pianoWidth + 'em';
+            */
         },
         async loadZipFile(zipBlob, origFileName) {
             let files = await unzip(zipBlob);
@@ -348,7 +539,7 @@ const Player = Vue.component('Player', {
                     this.fileName = fileName;
                     this.name = name;
                     this.$router.app.$emit('onRenameTab', { tabIndex: this.tabIndex, name });
-
+                    this.videoDownloadFileName = name + '.mp4';
                 }
             }
         },
@@ -383,6 +574,10 @@ const Player = Vue.component('Player', {
         audioPlaying() {
             console.log('onPlaying...');
 
+            this.videoStream.addTrack(this.$refs.playerAudio.captureStream().getAudioTracks()[0]);
+            console.log('Video recording canvas...');
+            this.mediaRecorder.start();
+
             this.clearAllTimers();
 
             //Create setTimeout for each bit
@@ -407,9 +602,11 @@ const Player = Vue.component('Player', {
 
                         let keyIndex = swarTimeDataItem.keyIndex;
                         let duration = swarTimeDataItem.duration;
-                        this.$refs['piano-key-' + keyIndex][0].classList.add('active-key');
+                        // this.$refs['piano-key-' + keyIndex][0].classList.add('active-key');
+                        this.keyboard.pressKeyIndex(keyIndex);
                         setTimeout(() => {
-                            this.$refs['piano-key-' + keyIndex][0].classList.remove('active-key');
+                            // this.$refs['piano-key-' + keyIndex][0].classList.remove('active-key');
+                            this.keyboard.releaseKeyIndex(keyIndex);
                         }, d.duration);
 
                         this.$refs['player-swar-' + index][0].classList.add('current-swar');
@@ -430,6 +627,9 @@ const Player = Vue.component('Player', {
             clearInterval(this.timer);
             // this.stopAnim();
             this.prevSwarIndex = -1;
+
+            this.mediaRecorder.stop();
+
         },
         audioSeeking(e) {
             // console.log('audioSeeking...', this.$refs.playerAudio.currentTime);
@@ -448,6 +648,33 @@ const Player = Vue.component('Player', {
             this.name = this.context.fileName;
             this.loadZipFile(this.context.zipBlob, this.context.fileName);
         }
+
+        //Create Keyboard
+        // let keyboardCanvas = document.getElementById('keyboardCanvas');
+        let keyboardCanvas = this.$refs['keyboardCanvas'];
+        // let keyboardContainer = document.getElementById('keyboard-container');
+        this.keyboardContext = keyboardCanvas.getContext('2d');
+        this.keyboard = new Keyboard(12, 16, this.keyboardContext, 600);
+
+        this.captureVideo = this.$refs.captureVideo;
+        this.videoStream = this.keyboard.canvas.captureStream(60);
+        this.mediaRecorder = new MediaRecorder(this.videoStream);
+        this.chunks = [];
+        this.mediaRecorder.ondataavailable = (e) => {
+            this.chunks.push(e.data);
+        };
+        this.mediaRecorder.onstop = (e) => {
+            var blob = new Blob(this.chunks, { 'type': 'video/mp4' });
+            this.chunks = [];
+            var videoURL = URL.createObjectURL(blob);
+            this.captureVideo.src = videoURL;
+            this.videoDownloadURL = videoURL;
+        };
+        this.mediaRecorder.ondataavailable = (e) => {
+            this.chunks.push(e.data);
+        };
+
+
     },
     created() {
         console.log('Player created');
@@ -751,7 +978,13 @@ const Main = Vue.component('Main', {
             message: '',
             curTab: null,
             // tabTitleIndex: 1,
+            showGitHubFileDialog: false,
             showFileDialog: false,
+            gitHubFileList: [],
+            gitHubFileTree: [],
+            gitHubOwner: 'kashodiya',
+            gitHubRepo: 'raag-files',
+            gitHubRawData: {},
             showDeleteConfirmDialog: false,
             tabs: [
                 {
@@ -797,6 +1030,11 @@ const Main = Vue.component('Main', {
         },
         addNewPlayer(context) {
             console.log('addNewPlayer called');
+            if (context && context.action && context.action == 'openGitHubFile') {
+                let item = context.item;
+                console.log(item.path);
+                context = undefined;
+            }
             // this.tabTitleIndex++;
             // let title = 'Play-' + this.tabTitleIndex;
             let title = getFileNameFromDate();
@@ -828,9 +1066,98 @@ const Main = Vue.component('Main', {
             this.tabs.push({ title, type: 'Editors', context });
             this.curTab = this.tabs.length - 1;
         },
-        listFiles() {
-            this.loadFilesListFromDB();
-            this.showFileDialog = true;
+        // async listFilesFor(forX){
+        //     if(forX == 'GitHub Files'){
+        //         // this.listGitHubFiles()
+        //         await this.listGitHubFiles('kashodiya', 'raag-files');
+        //         this.showGitHubFileDialog = true;
+        //     }else{
+        //         this.loadFilesListFromDB();
+        //         this.showFileDialog = true;
+        //     }
+        // },
+        async openGitHubFile(item) {
+            console.log({ item });
+            this.showGitHubFileDialog = false;
+            let zipObj = await this.downloadGithubZipFileFromPath(item.path);
+            this.openZipBlobInPlayer(zipObj);
+            // this.$router.app.$emit('onAddNewPlayer', {action: 'openGitHubFile', item});
+        },
+        async listFiles(forX) {
+            console.log({ forX });
+
+            if (forX == 'GitHub Files') {
+                // this.listGitHubFiles()
+                await this.listGitHubFiles(this.gitHubOwner, this.gitHubRepo);
+                this.showGitHubFileDialog = true;
+            } else {
+                this.loadFilesListFromDB();
+                this.showFileDialog = true;
+            }
+            // await this.listGitHubFiles('kashodiya', 'raag-files');
+            // this.showGitHubFileDialog = true;
+
+            // this.loadFilesListFromDB();
+            // this.showFileDialog = true;
+        },
+        async listGitHubFiles(owner, repo) {
+            // Following will give you a JSON of all the files in Git repo
+            let url = `https://api.github.com/repos/${owner}/${repo}/git/trees/main?recursive=1`;
+            this.gitHubRawData = await fetch(url).then(r => r.json());
+            this.gitHubFileList = this.gitHubRawData.tree.filter(n => n.path.indexOf("compositions") == 0 || n.path.indexOf("raags") == 0);
+            const mapper = {},
+                tree = {
+                    name: 'Places',
+                    id: 'root-sha',
+                    // selectAllCheckbox: 'Un/select all',
+                    children: []
+                };
+
+
+            for (const item of this.gitHubFileList) {
+                var re = /(?:\.([^.]+))?$/;
+                item.ext = re.exec(item.path)[1];
+                if (!item.ext) item.ext = '';
+
+                let str = item.path;
+                let splits = str.split('/'),
+                    // path = '',
+                    path = '';
+                let name = splits[splits.length - 1];
+
+                // console.log({ splits, item });
+                splits.reduce((parent, pathPart) => {
+                    // console.log({ parent });
+
+                    if (path) {
+                        path += `/${pathPart}`;
+                    } else {
+                        path = pathPart;
+                    }
+
+                    if (!mapper[path]) {
+                        const o = { name, path, item, id: item.sha };
+                        mapper[path] = o;
+                        // parent.selectAllCheckbox = true
+                        parent.children = parent.children || [];
+                        parent.children.push(o)
+                    }
+
+                    return mapper[path];
+                }, tree)
+            }
+
+
+            this.gitHubFileTree = tree.children;
+
+
+            console.log({ tree, url, 'data-tree': this.gitHubRawData.tree });
+            // let blobUrl;
+            // let treeItem = data.tree.find(t => t.path == path);
+            // if (treeItem) {
+            //     blobUrl = treeItem.url;
+            // }
+            // return blobUrl;
         },
         renameTab(info) {
             console.log('Renaming the tab: ', { info });
@@ -885,26 +1212,43 @@ const Main = Vue.component('Main', {
             //https://drive.google.com/uc?export=download&id=1NzoKWzASbL696Cw-XRicD-X1SSc5jnc5
 
 
-//https://www.googleapis.com/drive/v3/files/1NzoKWzASbL696Cw-XRicD-X1SSc5jnc5
+            //https://www.googleapis.com/drive/v3/files/1NzoKWzASbL696Cw-XRicD-X1SSc5jnc5
 
-            let id = link.split('/')[5];
-            let dlLink = "https://drive.google.com/uc?export=download&id=" + id;
-            console.log({ dlLink });
+            // let id = link.split('/')[5];
+            // let dlLink = "https://drive.google.com/uc?export=download&id=" + id;
+            console.log({ googleLink: link });
 
             let options = {
                 // mode: 'no-cors',
                 // headers: {
-                    'Access-Control-Allow-Origin': '*'
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS'
                 // }
             }
 
-            let zipBlob = await fetch(dlLink, options).then(r => r.blob());
+            let zipBlob = await fetch(link, options).then(r => r.blob());
+            // let zipBlob = await fetch(link).then(r => r.blob());
             console.log(zipBlob);
             let zip = await JSZip.loadAsync(zipBlob);
             console.log(zip.files);
             let fileName = "TODO.zip";
-            return {zip, fileName};
+            return { zip, fileName };
         },
+        async downloadGithubZipFileFromPath(gitFilePath) {
+            let parts = gitFilePath.split("/");
+            let owner = this.gitHubOwner;
+            let repo = this.gitHubRepo;
+            //A path looks like this: "raags/maru-bihag/raam-aakar-bane-man-mera/raam-aakar-bane-man-mera-antra-1.zip"
+            url = await this.getGitHubBlobUrlForPath(owner, repo, gitFilePath);
+            console.log({ url, owner, repo, gitFilePath });
+            let data = await fetch(url).then(r => r.json());
+            console.log(data);
+            let zip = await JSZip.loadAsync(data.content, { base64: true });
+            console.log(zip.files);
+            let fileName = parts[parts.length - 1];
+            return { zip, fileName };
+        },
+
         async downloadGithubZipFile(link) {
             //gitPermaLink is like https://github.com/kashodiya/raag-files/blob/3fdd550943223160244ce8fb4dbf17a00899b495/raags/maru-bihag/raam-aakar-bane-man-mera/raam-aakar-bane-man-mera-asthayee-1.zip
             //Get owner, repo and path from it
@@ -920,17 +1264,11 @@ const Main = Vue.component('Main', {
             let zip = await JSZip.loadAsync(data.content, { base64: true });
             console.log(zip.files);
             let fileName = parts[parts.length - 1];
-            return {zip, fileName};
+            return { zip, fileName };
         },
-        async downloadZipFileAndOpenInPlayer(link, source) {
-            let zipObj, zip, fileName;
-            if (source == 'github') {
-                zipObj = await this.downloadGithubZipFile(link);
-            } else if (source == 'drive.google') {
-                zipObj = await this.downloadGoogleDriveZipFile(link);
-            }
-            zip = zipObj.zip
-            fileName = zipObj.fileName;
+        async openZipBlobInPlayer(zipObj) {
+            let zip = zipObj.zip
+            let fileName = zipObj.fileName;
 
             let zipBlob = await zip.generateAsync({ type: "blob" });
             // let fileName = parts[parts.length - 1];
@@ -940,6 +1278,29 @@ const Main = Vue.component('Main', {
             console.log({ record });
             dbHelper.saveRecord(record);
             this.$router.app.$emit('onAddNewPlayer', record);
+
+        },
+        async downloadZipFileAndOpenInPlayer(link, source) {
+            // let zipObj, zip, fileName;
+            let zipObj;
+            if (source == 'github') {
+                zipObj = await this.downloadGithubZipFile(link);
+            } else if (source == 'drive.google') {
+                zipObj = await this.downloadGoogleDriveZipFile(link);
+            }
+            this.openZipBlobInPlayer(zipObj);
+
+            // zip = zipObj.zip
+            // fileName = zipObj.fileName;
+
+            // let zipBlob = await zip.generateAsync({ type: "blob" });
+            // // let fileName = parts[parts.length - 1];
+            // let name = fileName.replace(/\.[^/.]+$/, "");
+            // let record = { type: 'Recordings', name, fileName, zipBlob };
+
+            // console.log({ record });
+            // dbHelper.saveRecord(record);
+            // this.$router.app.$emit('onAddNewPlayer', record);
         },
         async XXXdownloadZipFileAndOpenInPlayer(gitPermaLink) {
 
@@ -997,10 +1358,13 @@ const Main = Vue.component('Main', {
             let source = '';
             if (sourceLink.indexOf('github') > -1) {
                 source = 'github';
-            } else if (sourceLink.indexOf('drive.google') > -1) {
+            } else if (sourceLink.indexOf('googleapis') > -1) {
+                // } else if (sourceLink.indexOf('drive.google') > -1) {
                 source = 'drive.google';
             }
-            this.downloadZipFileAndOpenInPlayer(sourceLink, source);
+            if (source != '') {
+                this.downloadZipFileAndOpenInPlayer(sourceLink, source);
+            }
         }
 
         console.log('Main created');
@@ -1073,10 +1437,13 @@ function initVue() {
                 console.log('Emitting addNewSwarEdit...');
                 this.$router.app.$emit('onAddNewSwarEdit', '');
             },
-            listFiles() {
-                console.log('Emitting listFiles...');
-                this.$router.app.$emit('onListFiles', '');
-            }
+            listFilesFor(foxX) {
+                this.$router.app.$emit('onListFiles', foxX);
+            },
+            // listFiles() {
+            //     console.log('Emitting listFiles...');
+            //     this.$router.app.$emit('onListFiles', '');
+            // }
         },
         mounted() {
             // this.addNewRecording();
@@ -1097,17 +1464,33 @@ async function init() {
 
 async function initDB() {
     let dbName = 'composer-db';
-    let storeNames = ['Players', 'Editors', 'Recordings'];
+    let storeNames = ['Players', 'Editors', 'Recordings', 'GoogleDriveFileTree'];
     let db = await idb.openDB(dbName, 1, {
-        upgrade(db) {
-            db.createObjectStore(storeNames[0]);
-            db.createObjectStore(storeNames[1]);
-            db.createObjectStore(storeNames[2]);
+        upgrade(db, oldVersion, newVersion, transaction) {
+            console.log({ db, oldVersion, newVersion, transaction });
+            if (oldVersion < 1) {
+                db.createObjectStore(storeNames[0]);
+                db.createObjectStore(storeNames[1]);
+                db.createObjectStore(storeNames[2]);
+            }
+            if (oldVersion < 2) {
+                db.createObjectStore(storeNames[3]);
+            }
         },
     });
     console.log('DB is connected');
 
     dbHelper = {
+        saveGoogleDriveFileTree: async (fileTree) => {
+            console.log('Saving Google Drive file tree...', fileTree);
+            await db.put('GoogleDriveFileTree', fileTree, fileTree.id);
+        },
+
+        getGoogleDriveFileTree: async (folderId) => {
+            return await db.get('GoogleDriveFileTree', folderId);
+        },
+
+
         saveRecord: async (record, oldKey) => {
             record.createdDate = new Date();
             console.log('Saving record...', record);
@@ -1140,6 +1523,7 @@ async function initDB() {
             await db.delete(record.type, record.name);
         },
     }
+    isDbReady = true;
     console.log('dbHelper is ready');
 }
 
@@ -1192,6 +1576,7 @@ function getFileNameFromDate() {
 
 
 function getFormattedDate(date) {
+    if (!date) return "";
     var year = date.getFullYear();
 
     var month = (1 + date.getMonth()).toString();
@@ -1202,3 +1587,235 @@ function getFormattedDate(date) {
 
     return month + '/' + day + '/' + year;
 }
+
+class Keyboard {
+    constructor(bottomKeysEngIndex, topKeysEngIndex, ctx, width) {
+        this.ctx = ctx;
+        this.keyNumOffset = 49; //49 is the C#3 on MIDI keys numbering system. See variable this.keysEng
+        let bottomNote =  bottomKeysEngIndex + this.keyNumOffset;
+        let topNote = topKeysEngIndex + this.keyNumOffset;
+
+        this.keysEng = "C#3 D3 D#3 E3 F3 F#3 G3 G#3 A3 A#3 B3 C4 C#4 D4 D#4 E4 F4 F#4 G4 G#4 A4 A#4 B4 C5 C#5 D5 D#5 E5 F5 F#5 G5 G#5 A5 A#5 B5 C6".split(" ");
+        this.swarsEng = ".S .r .R .g .G .M .m .P .d .D .n .N S r R g G M m P d D n N S. r. R. g. G. M. m. P. d. D. n. N.".split(" ");
+
+        this.canvas = ctx.canvas;
+
+        this.topNote = topNote;
+        this.bottomNote = bottomNote;
+
+        // this.bottomNote = (this.isBlackKey(bottomNote)) ? (bottomNote - 1) : bottomNote;
+        // this.topNote = (this.isBlackKey(topNote)) ? (topNote + 1) : topNote;
+        if(this.isBlackKey(bottomNote)){
+            console.log('Adding a key on the left');
+            this.bottomNote--;
+        }
+        if(this.isBlackKey(topNote)){
+            console.log('Adding a key on the right');
+            this.topNote++;
+        }
+
+        this.width = width;
+        this.keyBorderColor = '#000';
+        this.blackKeyColor = '#000';
+        this.whiteKeyColor = '#FFF';
+        this.whiteKeyActiveColor = '#555';
+        this.blackKeyActiveColor = 'grey';
+        this.blackTextActiveColor = 'yellow';
+        this.whiteTextActiveColor = 'yellow';
+        this.blackTextColor = 'white';
+        this.whiteTextColor = 'black';
+
+        this.keyData = [];  //Each element has {x, keyNum, pressed}
+        this.keyDataGenerated = false;
+
+        // this.ctx.textAlign = 'center';
+
+        this.whiteKeyCount = this.numWhiteKeys();
+        this.whiteKeyWidth = this.width / this.whiteKeyCount;
+        this.blackKeyWidth = (this.whiteKeyWidth / 3) * 2;
+        this.whiteKeyHeight = this.whiteKeyWidth * 3.5;
+
+        let maxHeight = 250;
+        if(this.whiteKeyHeight > maxHeight){
+            console.log('Too much keyboard height ' + this.whiteKeyHeight + ' reducing it to ' + maxHeight);
+
+            this.width = this.width * maxHeight / this.whiteKeyHeight;
+
+            this.whiteKeyCount = this.numWhiteKeys();
+            this.whiteKeyWidth = this.width / this.whiteKeyCount;
+            this.blackKeyWidth = (this.whiteKeyWidth / 3) * 2;
+            this.whiteKeyHeight = this.whiteKeyWidth * 3.5;
+    
+
+        }
+
+        this.blackKeyHeight = (this.whiteKeyHeight / 3) * 1.8;
+
+
+        this.drawKeyboard();
+    }
+
+    getSwarEng(keyNum){
+        return this.swarsEng[keyNum - this.keyNumOffset];
+    }
+
+    pressKeyIndex(keysEngIndex){
+        let keyNum = this.keyNumOffset + keysEngIndex;
+        this.pressKey(keyNum);
+    }
+
+    pressKey(keyNum){
+        console.log(`Pressing ${keyNum}`);
+        let keyInfo = this.getKeyInfo(keyNum);
+        keyInfo.pressed = true;
+        // let width = this.isBlackKey(keyNum) ? this.blackKeyWidth : this.whiteKeyWidth;
+        // let height = this.isBlackKey(keyNum) ? this.blackKeyHeight : this.whiteKeyHeight;
+        // this.ctx.fillStyle = 'grey';
+        // this.ctx.fillRect(keyInfo.x, 0, width, height);
+        this.drawKeyboard();
+    }
+
+    releaseKeyIndex(keysEngIndex){
+        let keyNum = this.keyNumOffset + keysEngIndex;
+        this.releaseKey(keyNum);
+    }
+
+    releaseKey(keyNum){
+        console.log(`Releasing ${keyNum}`);
+        let keyInfo = this.getKeyInfo(keyNum);
+        keyInfo.pressed = false;
+        this.drawKeyboard();
+    }
+
+    setWidth(width){
+        this.width = width;
+        this.drawKeyboard();
+    }
+
+    getKeyInfo(keyNum){
+        const index = this.keyData.map(e => e.keyNum).indexOf(keyNum);
+        let keyInfo = this.keyData[index];
+        return keyInfo;
+    }
+
+    drawKeyboard() {
+        let textFontSize = Math.round(this.whiteKeyWidth / 3); 
+        let textBottomMargin = textFontSize;
+
+
+        this.canvas.height = this.whiteKeyHeight + 1;
+        this.canvas.width = this.width + 1;
+
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        this.ctx.font = textFontSize + 'px serif';
+
+        console.log({ whiteKeyHeight: this.whiteKeyHeight, numWhiteKeys: this.numWhiteKeys(), width: this.width, topNote: this.topNote, bottomNote: this.bottomNote });
+
+        var curXPos = 0;
+        var prevKeyWasBlack = false;
+        let textX, textY, textFillStyle;
+
+        for (var keyNum = this.bottomNote; keyNum <= this.topNote; keyNum++) {
+            if (!this.isBlackKey(keyNum)) {
+
+                // draw the white key
+                this.ctx.fillStyle = this.whiteKeyColor;
+                textFillStyle = this.whiteTextColor;
+
+                if(this.keyDataGenerated && this.getKeyInfo(keyNum).pressed){
+                    this.ctx.fillStyle = this.whiteKeyActiveColor;
+                    textFillStyle = this.whiteTextActiveColor;
+                }
+                this.ctx.fillRect(curXPos, 0, this.whiteKeyWidth, this.whiteKeyHeight);
+                this.ctx.strokeStyle = this.keyBorderColor;
+                this.ctx.lineWidth = this.whiteKeyWidth * 0.08;
+                this.ctx.strokeRect(curXPos, 0, this.whiteKeyWidth, this.whiteKeyHeight);
+
+                let swarEng = this.getSwarEng(keyNum);
+                if(swarEng){
+                    textX = curXPos + (this.whiteKeyWidth / 2) - (textFontSize / 2);
+                    textY = this.whiteKeyHeight - textBottomMargin;
+                    this.ctx.fillStyle = textFillStyle;
+                    // console.log({ textX, textY, keyNum });
+                    this.ctx.fillText(swarEng, textX, textY);
+                }
+
+                if(!this.keyDataGenerated){
+                    this.keyData.push({x: curXPos, keyNum, isBlack: false, pressed: false});
+                }
+
+                // assign the key map
+                if (!prevKeyWasBlack) {
+                    // this.canvasKeyMap[canvasKeyIndex] = keyNum;
+                } else {
+
+                    // draw the black key that comes before the current white key
+                    this.ctx.fillStyle = this.blackKeyColor;
+                    textFillStyle = this.blackTextColor;
+                    if(this.keyDataGenerated && this.getKeyInfo(keyNum - 1).pressed){
+                        this.ctx.fillStyle = this.blackKeyActiveColor;
+                        textFillStyle = this.blackTextActiveColor;
+                    }
+
+                    let blackKeyXPos = curXPos - (this.blackKeyWidth / 2);
+                    this.ctx.fillRect(blackKeyXPos, 0, this.blackKeyWidth, this.blackKeyHeight);
+
+                    if(!this.keyDataGenerated){
+                        this.keyData.push({x: blackKeyXPos, keyNum: keyNum - 1, isBlack: true, pressed: false});
+                    }
+
+                    // this.ctx.font = '12px serif';
+
+                    swarEng = this.getSwarEng(keyNum - 1);
+                    if(swarEng){
+                        textX = (curXPos - (this.blackKeyWidth / 2)) + (this.blackKeyWidth / 2) - (textFontSize / 2);
+                        textY = this.blackKeyHeight - textBottomMargin;
+                        this.ctx.fillStyle = textFillStyle;
+                        // console.log({ textX, textY, keyNum });
+                        this.ctx.fillText(this.getSwarEng(keyNum - 1), textX, textY);
+                    }
+
+
+                }
+
+                // this.canvasKeyMap[canvasKeyIndex + 1] = keyNum;
+                // this.canvasKeyMap[canvasKeyIndex + 2] = keyNum;
+                // canvasKeyIndex += 3;
+                prevKeyWasBlack = false;
+
+                curXPos += this.whiteKeyWidth;
+            } else {
+                // this.canvasKeyMap[canvasKeyIndex - 1] = keyNum;
+                // this.canvasKeyMap[canvasKeyIndex] = keyNum;
+
+                //note: we don't need to advance the canvas key index here
+                prevKeyWasBlack = true;
+            }
+        }
+
+        if(!this.keyDataGenerated){
+            this.keyData = this.keyData.sort((a,b) => a.keyNum - b.keyNum); // b - a for reverse sort
+        }
+        this.keyDataGenerated = true;
+
+        console.log({keyData: this.keyData});
+
+    }
+
+    numWhiteKeys() {
+        var numberOfWhiteKeys = 0;
+        for (var keyNum = this.bottomNote; keyNum <= this.topNote; keyNum++) {
+            numberOfWhiteKeys += this.isBlackKey(keyNum) ? 0 : 1;
+        }
+        return numberOfWhiteKeys;
+    }
+
+    isBlackKey(keyNum) {
+        var noteMod = keyNum % 12;
+        if (noteMod === 1 || noteMod === 3 || noteMod === 6 || noteMod === 8 || noteMod === 10) {
+            return true;
+        }
+        return false;
+    }
+}
+
