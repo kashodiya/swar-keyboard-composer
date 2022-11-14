@@ -9,6 +9,7 @@ let googleDriveFileTree = [];
 let isGapiScriptLoaded = false;
 let isGapiDriveClientLoaded = false;
 let isDbReady = false;
+let queryParams = {};   //See vue created
 
 
 function waitFor(testFunction, callback) {
@@ -166,7 +167,7 @@ async function getGoogleDriveFilesTree(root) {
         }
     }));
     console.log('await Promise.all DONE', level, files.length, children.length);
-    
+
 
 
     // for (const file of files) {
@@ -458,7 +459,7 @@ const Player = Vue.component('Player', {
                 this.$refs['piano-key-' + d.keyIndex][0].classList.remove('active-key');
             }, d.duration);
         },
-        drawKeyboard(minSwarIndex, maxSwarIndex){
+        drawKeyboard(minSwarIndex, maxSwarIndex) {
             this.keyboard = new Keyboard(minSwarIndex, maxSwarIndex, this.keyboardContext, 600);
         },
         preparePiano() {
@@ -1267,7 +1268,7 @@ const Main = Vue.component('Main', {
             return { zip, fileName };
         },
         async openZipBlobInPlayer(zipObj) {
-            console.log({zipObj});
+            console.log({ zipObj });
             let zip = zipObj.zip
             let fileName = zipObj.fileName;
 
@@ -1284,7 +1285,7 @@ const Main = Vue.component('Main', {
         async downloadZipFileAndOpenInPlayer(link, source) {
             // let zipObj, zip, fileName;
             let zipObj;
-            console.log({link, source});
+            console.log({ link, source });
             if (source == 'github') {
                 zipObj = await this.downloadGithubZipFile(link);
             } else if (source == 'drive.google') {
@@ -1353,7 +1354,8 @@ const Main = Vue.component('Main', {
         this.$router.app.$on('onShowMessage', this.openShowMessage);
 
         //gitPermaLink=https://github.com/kashodiya/raag-files/blob/3fdd550943223160244ce8fb4dbf17a00899b495/raags/maru-bihag/raam-aakar-bane-man-mera/raam-aakar-bane-man-mera-asthayee-1.zip
-        let sourceLink = this.$route.query.sourceLink;
+        // let sourceLink = this.$route.query.sourceLink;
+        let sourceLink = queryParams.sourceLink;
         console.log('sourceLink = ', sourceLink);
         if (sourceLink) {
             // Test urls
@@ -1364,7 +1366,7 @@ const Main = Vue.component('Main', {
             let source = '';
             if (sourceLink.indexOf('kashodiya.github.io/myfiles') > -1) {
                 source = 'github.myfiles'
-            }else if (sourceLink.indexOf('github.com') > -1) {
+            } else if (sourceLink.indexOf('github.com') > -1) {
                 source = 'github';
             } else if (sourceLink.indexOf('googleapis') > -1) {
                 // } else if (sourceLink.indexOf('drive.google') > -1) {
@@ -1452,6 +1454,13 @@ function initVue() {
             //     console.log('Emitting listFiles...');
             //     this.$router.app.$emit('onListFiles', '');
             // }
+        },
+        created() {
+            // let sourceLink = this.$route.query;
+
+            queryParams = new Proxy(new URLSearchParams(window.location.search), {
+                get: (searchParams, prop) => searchParams.get(prop),
+            });
         },
         mounted() {
             // this.addNewRecording();
@@ -1600,7 +1609,7 @@ class Keyboard {
     constructor(bottomKeysEngIndex, topKeysEngIndex, ctx, width) {
         this.ctx = ctx;
         this.keyNumOffset = 49; //49 is the C#3 on MIDI keys numbering system. See variable this.keysEng
-        let bottomNote =  bottomKeysEngIndex + this.keyNumOffset;
+        let bottomNote = bottomKeysEngIndex + this.keyNumOffset;
         let topNote = topKeysEngIndex + this.keyNumOffset;
 
         this.keysEng = "C#3 D3 D#3 E3 F3 F#3 G3 G#3 A3 A#3 B3 C4 C#4 D4 D#4 E4 F4 F#4 G4 G#4 A4 A#4 B4 C5 C#5 D5 D#5 E5 F5 F#5 G5 G#5 A5 A#5 B5 C6".split(" ");
@@ -1613,11 +1622,11 @@ class Keyboard {
 
         // this.bottomNote = (this.isBlackKey(bottomNote)) ? (bottomNote - 1) : bottomNote;
         // this.topNote = (this.isBlackKey(topNote)) ? (topNote + 1) : topNote;
-        if(this.isBlackKey(bottomNote)){
+        if (this.isBlackKey(bottomNote)) {
             console.log('Adding a key on the left');
             this.bottomNote--;
         }
-        if(this.isBlackKey(topNote)){
+        if (this.isBlackKey(topNote)) {
             console.log('Adding a key on the right');
             this.topNote++;
         }
@@ -1644,7 +1653,7 @@ class Keyboard {
         this.whiteKeyHeight = this.whiteKeyWidth * 3.5;
 
         let maxHeight = 250;
-        if(this.whiteKeyHeight > maxHeight){
+        if (this.whiteKeyHeight > maxHeight) {
             console.log('Too much keyboard height ' + this.whiteKeyHeight + ' reducing it to ' + maxHeight);
 
             this.width = this.width * maxHeight / this.whiteKeyHeight;
@@ -1653,7 +1662,7 @@ class Keyboard {
             this.whiteKeyWidth = this.width / this.whiteKeyCount;
             this.blackKeyWidth = (this.whiteKeyWidth / 3) * 2;
             this.whiteKeyHeight = this.whiteKeyWidth * 3.5;
-    
+
 
         }
 
@@ -1663,16 +1672,16 @@ class Keyboard {
         this.drawKeyboard();
     }
 
-    getSwarEng(keyNum){
+    getSwarEng(keyNum) {
         return this.swarsEng[keyNum - this.keyNumOffset];
     }
 
-    pressKeyIndex(keysEngIndex){
+    pressKeyIndex(keysEngIndex) {
         let keyNum = this.keyNumOffset + keysEngIndex;
         this.pressKey(keyNum);
     }
 
-    pressKey(keyNum){
+    pressKey(keyNum) {
         console.log(`Pressing ${keyNum}`);
         let keyInfo = this.getKeyInfo(keyNum);
         keyInfo.pressed = true;
@@ -1683,31 +1692,31 @@ class Keyboard {
         this.drawKeyboard();
     }
 
-    releaseKeyIndex(keysEngIndex){
+    releaseKeyIndex(keysEngIndex) {
         let keyNum = this.keyNumOffset + keysEngIndex;
         this.releaseKey(keyNum);
     }
 
-    releaseKey(keyNum){
+    releaseKey(keyNum) {
         console.log(`Releasing ${keyNum}`);
         let keyInfo = this.getKeyInfo(keyNum);
         keyInfo.pressed = false;
         this.drawKeyboard();
     }
 
-    setWidth(width){
+    setWidth(width) {
         this.width = width;
         this.drawKeyboard();
     }
 
-    getKeyInfo(keyNum){
+    getKeyInfo(keyNum) {
         const index = this.keyData.map(e => e.keyNum).indexOf(keyNum);
         let keyInfo = this.keyData[index];
         return keyInfo;
     }
 
     drawKeyboard() {
-        let textFontSize = Math.round(this.whiteKeyWidth / 3); 
+        let textFontSize = Math.round(this.whiteKeyWidth / 3);
         let textBottomMargin = textFontSize;
 
 
@@ -1730,7 +1739,7 @@ class Keyboard {
                 this.ctx.fillStyle = this.whiteKeyColor;
                 textFillStyle = this.whiteTextColor;
 
-                if(this.keyDataGenerated && this.getKeyInfo(keyNum).pressed){
+                if (this.keyDataGenerated && this.getKeyInfo(keyNum).pressed) {
                     this.ctx.fillStyle = this.whiteKeyActiveColor;
                     textFillStyle = this.whiteTextActiveColor;
                 }
@@ -1740,7 +1749,7 @@ class Keyboard {
                 this.ctx.strokeRect(curXPos, 0, this.whiteKeyWidth, this.whiteKeyHeight);
 
                 let swarEng = this.getSwarEng(keyNum);
-                if(swarEng){
+                if (swarEng) {
                     textX = curXPos + (this.whiteKeyWidth / 2) - (textFontSize / 2);
                     textY = this.whiteKeyHeight - textBottomMargin;
                     this.ctx.fillStyle = textFillStyle;
@@ -1748,8 +1757,8 @@ class Keyboard {
                     this.ctx.fillText(swarEng, textX, textY);
                 }
 
-                if(!this.keyDataGenerated){
-                    this.keyData.push({x: curXPos, keyNum, isBlack: false, pressed: false});
+                if (!this.keyDataGenerated) {
+                    this.keyData.push({ x: curXPos, keyNum, isBlack: false, pressed: false });
                 }
 
                 // assign the key map
@@ -1760,7 +1769,7 @@ class Keyboard {
                     // draw the black key that comes before the current white key
                     this.ctx.fillStyle = this.blackKeyColor;
                     textFillStyle = this.blackTextColor;
-                    if(this.keyDataGenerated && this.getKeyInfo(keyNum - 1).pressed){
+                    if (this.keyDataGenerated && this.getKeyInfo(keyNum - 1).pressed) {
                         this.ctx.fillStyle = this.blackKeyActiveColor;
                         textFillStyle = this.blackTextActiveColor;
                     }
@@ -1768,14 +1777,14 @@ class Keyboard {
                     let blackKeyXPos = curXPos - (this.blackKeyWidth / 2);
                     this.ctx.fillRect(blackKeyXPos, 0, this.blackKeyWidth, this.blackKeyHeight);
 
-                    if(!this.keyDataGenerated){
-                        this.keyData.push({x: blackKeyXPos, keyNum: keyNum - 1, isBlack: true, pressed: false});
+                    if (!this.keyDataGenerated) {
+                        this.keyData.push({ x: blackKeyXPos, keyNum: keyNum - 1, isBlack: true, pressed: false });
                     }
 
                     // this.ctx.font = '12px serif';
 
                     swarEng = this.getSwarEng(keyNum - 1);
-                    if(swarEng){
+                    if (swarEng) {
                         textX = (curXPos - (this.blackKeyWidth / 2)) + (this.blackKeyWidth / 2) - (textFontSize / 2);
                         textY = this.blackKeyHeight - textBottomMargin;
                         this.ctx.fillStyle = textFillStyle;
@@ -1801,12 +1810,12 @@ class Keyboard {
             }
         }
 
-        if(!this.keyDataGenerated){
-            this.keyData = this.keyData.sort((a,b) => a.keyNum - b.keyNum); // b - a for reverse sort
+        if (!this.keyDataGenerated) {
+            this.keyData = this.keyData.sort((a, b) => a.keyNum - b.keyNum); // b - a for reverse sort
         }
         this.keyDataGenerated = true;
 
-        console.log({keyData: this.keyData});
+        console.log({ keyData: this.keyData });
 
     }
 
