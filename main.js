@@ -529,6 +529,7 @@ const Player = Vue.component('Player', {
             } else {
                 if (this.context) {
                     // fileName = this.context.name;
+                    this.videoDownloadFileName = this.context.name + '.mp4';
                 } else {
                     let fileName = this.chosenFile.name;
 
@@ -674,6 +675,13 @@ const Player = Vue.component('Player', {
         this.mediaRecorder.ondataavailable = (e) => {
             this.chunks.push(e.data);
         };
+
+        if(this.context && this.context.name){
+            this.name = this.context.name;
+            console.log('Player is using this name form the context: ' + this.name);
+            this.videoDownloadFileName = this.context.name + '.mp4';
+            console.log({videoDownloadFileName: this.videoDownloadFileName});
+        }
 
 
     },
@@ -1277,6 +1285,7 @@ const Main = Vue.component('Main', {
             let name = fileName.replace(/\.[^/.]+$/, "");
             let record = { type: 'Recordings', name, fileName, zipBlob };
 
+            console.log('Opening the player with a ZIP file downloaded...');
             console.log({ record });
             dbHelper.saveRecord(record);
             this.$router.app.$emit('onAddNewPlayer', record);
@@ -1295,7 +1304,8 @@ const Main = Vue.component('Main', {
                 let zipBlob = await fetch(link).then(r => r.blob());
                 let zip = await JSZip.loadAsync(zipBlob);
                 console.log(zip.files);
-                let fileName = "TODO.zip";
+                let parts = link.split('/');
+                let fileName = parts[parts.length - 1];
                 zipObj = { zip, fileName };
             }
             this.openZipBlobInPlayer(zipObj);
@@ -1361,7 +1371,6 @@ const Main = Vue.component('Main', {
             // Test urls
             // ?sourceLink=https://drive.google.com/file/d/1NzoKWzASbL696Cw-XRicD-X1SSc5jnc5/view?usp=sharing
             // ?sourceLink=https://github.com/kashodiya/raag-files/blob/3fdd550943223160244ce8fb4dbf17a00899b495/raags/maru-bihag/raam-aakar-bane-man-mera/raam-aakar-bane-man-mera-asthayee-1.zip
-
 
             let source = '';
             if (sourceLink.indexOf('kashodiya.github.io/myfiles') > -1) {
