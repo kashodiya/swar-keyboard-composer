@@ -39,4 +39,11 @@ Connect your computer to your keyboard using MIDI cable.
 - I encourage you to open the zip and explore the files.
 - File name ending with "-omenad-swars.txt" is of special interest. It contains the swars that you can use with [Omenad fonts](https://omenad.github.io/fonts/). Tip for advance users: Download the font and install on your computers. And now you can use editor like Microsoft Word to use Omenad fonts. You can cut paste swars from "-omenad-swars.txt" file!
 
+<br>
+
+### Is this open source?
+- Yes you can find it [here](https://github.com/kashodiya/swar-keyboard-composer)!
+
+<br>
+
 # Enjoy!
