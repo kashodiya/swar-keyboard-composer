@@ -1267,6 +1267,7 @@ const Main = Vue.component('Main', {
             return { zip, fileName };
         },
         async openZipBlobInPlayer(zipObj) {
+            console.log({zipObj});
             let zip = zipObj.zip
             let fileName = zipObj.fileName;
 
@@ -1283,10 +1284,18 @@ const Main = Vue.component('Main', {
         async downloadZipFileAndOpenInPlayer(link, source) {
             // let zipObj, zip, fileName;
             let zipObj;
+            console.log({link, source});
             if (source == 'github') {
                 zipObj = await this.downloadGithubZipFile(link);
             } else if (source == 'drive.google') {
                 zipObj = await this.downloadGoogleDriveZipFile(link);
+            } else if (source == 'github.myfiles') {
+                //Direct download from link
+                let zipBlob = await fetch(link).then(r => r.blob());
+                let zip = await JSZip.loadAsync(zipBlob);
+                console.log(zip.files);
+                let fileName = "TODO.zip";
+                zipObj = { zip, fileName };
             }
             this.openZipBlobInPlayer(zipObj);
 
@@ -1329,15 +1338,12 @@ const Main = Vue.component('Main', {
             console.log({ record });
             dbHelper.saveRecord(record);
             this.$router.app.$emit('onAddNewPlayer', record);
-            //xxx
-
-
         }
     },
     mounted() {
         this.curTab = 0;
     },
-    created() {
+    async created() {
         this.loadFilesListFromDB();
         this.$router.app.$on('onAddNewRecording', this.addNewRecording);
         this.$router.app.$on('onAddNewPlayer', this.addNewPlayer);
@@ -1356,14 +1362,16 @@ const Main = Vue.component('Main', {
 
 
             let source = '';
-            if (sourceLink.indexOf('github') > -1) {
+            if (sourceLink.indexOf('kashodiya.github.io/myfiles') > -1) {
+                source = 'github.myfiles'
+            }else if (sourceLink.indexOf('github.com') > -1) {
                 source = 'github';
             } else if (sourceLink.indexOf('googleapis') > -1) {
                 // } else if (sourceLink.indexOf('drive.google') > -1) {
                 source = 'drive.google';
             }
             if (source != '') {
-                this.downloadZipFileAndOpenInPlayer(sourceLink, source);
+                await this.downloadZipFileAndOpenInPlayer(sourceLink, source);
             }
         }
 
