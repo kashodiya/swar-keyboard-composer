@@ -577,6 +577,8 @@ const Player = Vue.component('Player', {
         audioPlaying() {
             console.log('onPlaying...');
 
+            this.videoDownloadURL = null;
+
             this.videoStream.addTrack(this.$refs.playerAudio.captureStream().getAudioTracks()[0]);
             console.log('Video recording canvas...');
             this.mediaRecorder.start();
@@ -1383,7 +1385,7 @@ const Main = Vue.component('Main', {
             if (source != '') {
                 await this.downloadZipFileAndOpenInPlayer(sourceLink, source);
             }
-            this.$router.app.$emit('onShowMessage', 'Please click Play button to start playing.');
+            // this.$router.app.$emit('onShowMessage', 'Please click Play button to start playing.');
         }
 
         console.log('Main created');
