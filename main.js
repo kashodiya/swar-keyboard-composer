@@ -10,7 +10,7 @@ let isGapiScriptLoaded = false;
 let isGapiDriveClientLoaded = false;
 let isDbReady = false;
 let queryParams = {};   //See vue created
-
+ 
 
 function waitFor(testFunction, callback) {
     if (testFunction()) {
