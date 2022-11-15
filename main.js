@@ -682,8 +682,6 @@ const Player = Vue.component('Player', {
             this.videoDownloadFileName = this.context.name + '.mp4';
             console.log({videoDownloadFileName: this.videoDownloadFileName});
         }
-
-
     },
     created() {
         console.log('Player created');
@@ -1384,6 +1382,7 @@ const Main = Vue.component('Main', {
             if (source != '') {
                 await this.downloadZipFileAndOpenInPlayer(sourceLink, source);
             }
+            this.$router.app.$emit('onShowMessage', 'Please click Play button to start playing.');
         }
 
         console.log('Main created');
