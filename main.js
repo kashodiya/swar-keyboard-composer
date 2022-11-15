@@ -516,6 +516,7 @@ const Player = Vue.component('Player', {
                 if (fileInfo.ext == 'ogg') {
                     //audio/ogg; codecs=opus
                     this.$refs.playerAudio.src = window.URL.createObjectURL(fileInfo.content);
+                    this.$refs.playerAudio.play();
                 } else if (fileInfo.ext == 'json') {
                     this.swarTimeData = fileInfo.content;
                     console.table(this.swarTimeData.map(d => { return { st: d.startTime, et: d.endTime, swar: d.swar } }));
